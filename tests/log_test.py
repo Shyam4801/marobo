@@ -10,29 +10,47 @@ from bo.gprInterface import InternalGPR
 from bo.utils import Fn, compute_robustness
 from bo.sampling import uniform_sampling
 from bo.bayesianOptimization.internalBO import InternalBO
+# from bo.bayesianOptimization.rolloutBO import RolloutBO
 from bo.bayesianOptimization.rolloutAllatOnce import RolloutBO
+# from bo.bayesianOptimization.rolloutIsolated import RolloutBO
 from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
 from bo.utils.logged import *
+import time , datetime, os
 
 # logger = MyLogger("expLog.log").get_logger()
 
-def logdf(data,init_samp,maxbud, name):
+def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     df = pd.DataFrame(np.array(data.history))
     # df = df.iloc[:,1].apply(lambda x: x[0])
     print(df)
     print('_______________________________')
+    print('yofmins :',yofmins)
     xcoord = pd.DataFrame(df.iloc[:,1].to_list())
     xcoord['y'] = df.iloc[:,2]
-    xcoord.to_csv('results/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+'.csv')
+    xcoord['ysofar'] = [min(xcoord['y'].iloc[:i]) for i in range(1,len(xcoord)+1)] #xcoord['y'].apply(lambda x : min([x - y for y in yofmins]))
+    if rollout:
+        rl='rollout'
+    else:
+        rl = 'n'
+    timestmp = 'results/macreps/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+    if not os.path.exists(timestmp):
+        os.makedirs(timestmp)
+    tot_samples = xcoord['y'][:10]
+    tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
+    reduced_df = pd.DataFrame(tot_samples)
+    xcoord.iloc[init_samp:].to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
+    plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     print('_______________ Min Observed ________________')
     print(xcoord[np.argmin(xcoord[:,2]), :])
-    return xcoord[np.argmin(xcoord[:,2]), :]
+    
+    return xcoord[np.argmin(xcoord[:,2]), :], timestmp
     
     # plot_1d(xcoord,self.tf,0.25,0.07,0.8,self.init_budget,self.max_budget - self.init_budget)
     # plot_obj(xcoord,internal_function,[9.42, 2.475],[-5,10],[0,15],init_samp,maxbud - init_samp)
+    
 
 class Test_internalBO(unittest.TestCase):
     logger = logging.getLogger(__name__)
@@ -132,7 +150,7 @@ class Test_internalBO(unittest.TestCase):
         assert np.array(data.history, dtype=object).shape[1] == 3
         
     def mod_branin(self):
-        def internal_function(X, agent_samples = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
+        def internal_function(X, from_agent = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
             x1 = X[0]
             x2 = X[1]
             t = 1 / (8 * np.pi)
@@ -147,30 +165,42 @@ class Test_internalBO(unittest.TestCase):
             l2 = 5 * np.exp(-5 * ((x1+3.14)**2 + (x2-2.275)**2))
             return term1 + term2 + s + l1 + l2
 
+        glob_mins = np.array([[9.42, 2.475],[3.14, 12.27],[3.14, 2.275]])
+        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+
         region_support = np.array([[-5, 10], [-5, 15]])
 
-        seed = 12345
-        # region_support = np.array([[-1, 1],[-2, 2]])
+        seeds = []
+        
+        for i in range(25):
+            sd = int(time.time())
+            seeds.append(sd)
+            seed = sd #12345
 
-        gpr_model = InternalGPR()
-        bo = InternalBO()
+            gpr_model = InternalGPR()
+            bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 10
-        opt = PerformBO(
-            test_function=internal_function,
-            init_budget=init_samp,
-            max_budget=maxbud,
-            region_support=region_support,
-            seed=seed,
-            behavior=Behavior.MINIMIZATION,
-            init_sampling_type="lhs_sampling"
-        )
+            init_samp = 10
+            maxbud = 50
+            opt = PerformBO(
+                test_function=internal_function,
+                init_budget=init_samp,
+                max_budget=maxbud,
+                region_support=region_support,
+                seed=seed,
+                num_agents= 4,
+                behavior=Behavior.MINIMIZATION,
+                init_sampling_type="lhs_sampling",
+                logger = self.logger
+            )
 
-        data, rg = opt(bo, gpr_model)
-
-        name = Test_internalBO.mod_branin.__name__
-        logdf(data,init_samp,maxbud, name)
+            data, rg, plot_res = opt(bo, gpr_model)
+            name = Test_internalBO.mod_branin.__name__
+            minobs, timestmp = logdf(data,init_samp,maxbud, name+str(seed), y_of_mins, rollout=True)
+        
+        print('seeds :',seeds)
+        sdf = pd.DataFrame(seeds)
+        sdf.to_csv(timestmp+'/sdf.csv')
 
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
@@ -180,6 +210,8 @@ class Test_internalBO(unittest.TestCase):
         print('_______________________________')
         print('Bounds of final partition: ',rg)
         print('_______________________________')
+
+        contour(plot_res['agents'],plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
 
         assert np.array(data.history, dtype=object).shape[0] == maxbud
         assert np.array(data.history, dtype=object).shape[1] == 3
@@ -199,8 +231,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 17
+        init_samp = 10
+        maxbud = 12
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -217,7 +249,7 @@ class Test_internalBO(unittest.TestCase):
         # print('data: ',data.agent_history)
 
         name = Test_internalBO.test2_internalBO.__name__
-        minobs = logdf(data,init_samp,maxbud, name)
+        minobs = logdf(data,init_samp,maxbud, name, y_of_mins, rollout=True)
         
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
@@ -250,7 +282,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 5
-        maxbud = 30
+        maxbud = 50
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -265,7 +297,7 @@ class Test_internalBO(unittest.TestCase):
 
         data, rg, plot_res = opt(bo, gpr_model)
         name = Test_internalBO.test3_internalBO.__name__
-        minobs = logdf(data,init_samp,maxbud, name)
+        minobs = logdf(data,init_samp,maxbud, name, y_of_mins)
         
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
@@ -286,6 +318,68 @@ class Test_internalBO(unittest.TestCase):
         def internal_function(X, from_agent = None):
             return (X[0]**2+X[1]-11)**2 + (X[0]+X[1]**2-7)**2
         
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # Minimum 1: f(3.0, 2.0) = 0.0
+        # Minimum 2: f(-2.805118, 3.131312) = 0.0
+        # Minimum 3: f(-3.779310, -3.283186) = 0.0
+        # Minimum 4: f(3.584428, -1.848126) = 0.0
+        glob_mins = np.array([[3,2],[-2.805118, 3.131312],[-3.779310, -3.283186],[3.584428, -1.848126]])
+        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+
+        region_support = np.array([[-5, 5], [-5, 5]]) 
+
+        seeds = []
+        
+        sd = int(time.time())
+        seeds.append(sd)
+        seed = task_id #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = 10
+        maxbud = 50
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+        name = Test_internalBO.himmelblau.__name__
+        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+str(task_id), y_of_mins, rollout=True)
+        
+        print('seeds :',seeds)
+        sdf = pd.DataFrame(seeds)
+        sdf.to_csv(timestmp+'/sdf.csv')
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print()
+        print('Plotting')
+        
+        # minobs = data.history[np.argmin(data.history[:,2]), :]
+        
+        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        assert np.array(data.history, dtype=object).shape[0] == maxbud
+        assert np.array(data.history, dtype=object).shape[1] == 3
+
+    
+    def test_funcdiff(self):
+        def internal_function(X, from_agent = None):
+            return (X[0] - 2)**2 + (X[1] + 3)**2 + 2
+        
         # Minimum 1: f(3.0, 2.0) = 0.0
         # Minimum 2: f(-2.805118, 3.131312) = 0.0
         # Minimum 3: f(-3.779310, -3.283186) = 0.0
@@ -301,7 +395,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 5
-        maxbud = 30
+        maxbud = 10
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -316,7 +410,7 @@ class Test_internalBO(unittest.TestCase):
 
         data, rg, plot_res = opt(bo, gpr_model)
         name = Test_internalBO.himmelblau.__name__
-        minobs = logdf(data,init_samp,maxbud, name)
+        minobs = logdf(data,init_samp,maxbud, name, y_of_mins, rollout=True)
         
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
@@ -334,7 +428,6 @@ class Test_internalBO(unittest.TestCase):
         contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
         assert np.array(data.history, dtype=object).shape[0] == maxbud
         assert np.array(data.history, dtype=object).shape[1] == 3
-
 
 if __name__ == "__main__":
     unittest.main()

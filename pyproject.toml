@@ -7,7 +7,7 @@ packages = [{include="bo"}]
 
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.8"
 numpy = "^1.22.4"
 scikit-learn = "^1.1.1"
 scipy = "^1.8.1"
@@ -20,8 +20,6 @@ pathos = "^0.2.9"
 tqdm = "^4.65.0"
 chaospy = "^4.3.11"
 gstools = "^1.4.1"
-plotly = "^5.15"
-dash = "^2.11.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

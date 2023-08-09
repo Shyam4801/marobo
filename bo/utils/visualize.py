@@ -4,12 +4,24 @@ from numpy import meshgrid
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 # from .constants import NAME, H
-import plotly.express as px
-from dash import Dash, dcc, html, Input, Output
-import plotly.graph_objects as go
-import plotly.io as pio
-pio.renderers.default = "browser"
+# import plotly.express as px
+# from dash import Dash, dcc, html, Input, Output
+# import plotly.graph_objects as go
+# import plotly.io as pio
+# pio.renderers.default = "browser"
+import os
+import pandas as pd
 
+def plot_convergence(df, name):
+    plt.plot(df.index,df['ysofar'])
+    plt.xlabel('Iterations')
+    plt.ylabel('Regret')
+    if not os.path.exists(name):
+        os.makedirs(name)
+    plt.savefig(name+'/'+'conv.jpg')
+
+# df = pd.read_csv('results/himmelblau_5_42.csv')
+# plot_convergence(df,'himmelblau42')
 
 def vis_ei(x,ei_vals):
     (fig, ax) = plt.subplots(1, 2, figsize=(5, 5))
@@ -133,7 +145,7 @@ def sc():
     app.run_server(debug=True)
 
 
-def contour(agents, assignments, region, test_function, inactive_region_samples, sample, mins,minobs, fig = go.Figure()):
+def contour(agents, assignments, region, test_function, inactive_region_samples, sample, mins,minobs, fig):
     app = Dash(__name__)
 
     print('sample ',sample)
@@ -151,13 +163,13 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
     ])
     
     agent_hist = agents #test_function.agent_point_history
-    print('b4 reshape :',agent_hist)
+    # print('b4 reshape :',agent_hist)
     # agent_hist = np.array(agent_hist)
     agent_hist = np.array(agent_hist).reshape((4*sample,2)) #[np.array(i).reshape((4,2)) for i in agent_hist ]
     # agent_hist = [i[-1] for i in agent_hist]
     print('after reshape ',agent_hist)
-    print('inactive_region_samples:', inactive_region_samples)
-    print('from test func agent hist: ',test_function.agent_point_history)
+    # print('inactive_region_samples:', inactive_region_samples)
+    # print('from test func agent hist: ',test_function.agent_point_history)
     # Generate data
     print(region)
     x = np.linspace(region[0,0], region[0,1], 100)
@@ -323,7 +335,7 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
         # return fig
     # pio.orca.shutdown_server()
 
-    app.run_server(debug=True)
+    app.run_server(debug=False)
     
 
 # contour()

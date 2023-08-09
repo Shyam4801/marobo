@@ -7,6 +7,7 @@ from tqdm import tqdm
 import copy
 import time 
 
+
 from .internalBO import InternalBO
 # from .rolloutIsolated import RolloutBO
 from ..gprInterface import GPR
@@ -76,7 +77,7 @@ class RolloutEI(InternalBO):
         # print('x_opt_from_all: ', np.hstack((x_opt_from_all)).reshape((6,4,2)))
         # Generate a sample dataset to rollout and find h step observations
         # exit()
-        subx = np.hstack((x_opt_from_all)).reshape((6,4,2)) #np.asarray(x_opt_from_all)
+        subx = np.hstack((x_opt_from_all)).reshape((6,4,tf_dim)) #np.asarray(x_opt_from_all)
         # subx = np.vstack([subx,np.array([x_opt_from_all])]) #np.array([x_opt]) #np.vstack([subx,x_opt])
         # print('subx : ',subx)
         # print('subx :',subx)
@@ -142,34 +143,34 @@ class RolloutEI(InternalBO):
         exp_val = np.zeros(num_pts)
         for i in range(num_pts):
         # print()
-            exp_val[i] = self.get_pt_reward(eval_pts[i])
+            exp_val[i] = self._evaluate_at_point_list(eval_pts[i])
         return exp_val
     
     def _evaluate_at_point_list(self, point_to_evaluate):
         self.point_current = point_to_evaluate
-        partial_getptreard = partial(self.get_pt_reward)
-        # getptreward = RolloutEI()
-        # getptreward.point_current = point_to_evaluate
-        # getptreward.gpr_model = self.gpr_model
-        # getptreward.tf = self.tf
-        
+        my_list = [0]*int(self.numthreads/2) + [1]*int(self.numthreads/2)
+        th = np.random.shuffle(my_list)
+        # print('th ---------',th)
         if self.numthreads > 1:
-            serial_mc_iters = [int(self.mc_iters/self.numthreads)] * self.numthreads
+            serial_mc_iters = [int(int(self.numthreads)/self.numthreads)] * 5 #self.numthreads
+            print('serial_mc_iters',serial_mc_iters, self.numthreads)
             pool = Pool(processes=self.numthreads)
-            rewards = pool.map(unwrap_self_f, ([self]*5,serial_mc_iters))
+            rewards = pool.map(self.get_pt_reward, serial_mc_iters)
             pool.close()
             pool.join()
         else:
-            rewards = self.get_pt_reward(self.point_current, self.mc_iters)
-
+            rewards = self.get_pt_reward()
+        rewards = np.hstack((rewards))
+        # print('rewards: ', rewards)
         return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
-    def get_pt_reward(self,current_point, iters=5):
+    def get_pt_reward(self, iters=5):
         reward = 0
-        # for i in range(iters):
-        reward += self.get_h_step_reward(current_point)
-        return reward #(reward/iters)
+        for i in range(iters):
+            reward += self.get_h_step_reward(self.point_current)
+            print('reward after each MC iter: ', self.point_current, reward)
+        return (reward/iters)
     
     # Rollout for h steps 
     def get_h_step_reward(self,current_point):
