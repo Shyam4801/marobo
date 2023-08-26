@@ -10,7 +10,7 @@ from bo.gprInterface import InternalGPR
 from bo.utils import Fn, compute_robustness
 from bo.sampling import uniform_sampling
 from bo.bayesianOptimization.internalBO import InternalBO
-from bo.bayesianOptimization.rolloutAllatOnce import RolloutBO
+from bo.bayesianOptimization.marlBO import RolloutBO
 from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
@@ -19,7 +19,7 @@ from bo.utils.logged import *
 # logger = MyLogger("expLog.log").get_logger()
 
 def logdf(data,init_samp,maxbud, name):
-    df = pd.DataFrame(np.array(data.history))
+    df = pd.DataFrame(np.array(data.history, dtype='object'))
     # df = df.iloc[:,1].apply(lambda x: x[0])
     print(df)
     print('_______________________________')
@@ -295,13 +295,13 @@ class Test_internalBO(unittest.TestCase):
 
         region_support = np.array([[-5, 5], [-5, 5]]) 
 
-        seed = 12345
+        seed = 124
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 30
+        init_samp = 10
+        maxbud = 20
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,

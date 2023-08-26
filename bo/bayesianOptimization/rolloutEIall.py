@@ -8,7 +8,7 @@ import copy
 import time 
 
 from .internalBO import InternalBO
-# from .rolloutIsolated import RolloutBO
+# from .rolloutAllatOnce import RolloutBO
 from ..gprInterface import GPR
 from bo.gprInterface import InternalGPR
 from ..sampling import uniform_sampling
@@ -76,11 +76,12 @@ class RolloutEI(InternalBO):
         # print('x_opt_from_all: ', np.hstack((x_opt_from_all)).reshape((6,4,2)))
         # Generate a sample dataset to rollout and find h step observations
         # exit()
-        subx = np.hstack((x_opt_from_all)).reshape((6,4,2)) #np.asarray(x_opt_from_all)
+        subx = np.hstack((x_opt_from_all)).reshape((6,4,tf_dim)) #np.asarray(x_opt_from_all)
         # subx = np.vstack([subx,np.array([x_opt_from_all])]) #np.array([x_opt]) #np.vstack([subx,x_opt])
         # print('subx : ',subx)
         # print('subx :',subx)
         # Rollout and get h step observations
+        
         suby = -1 * self.get_exp_values(subx)
         print('############################################################################')
         print()
@@ -145,31 +146,72 @@ class RolloutEI(InternalBO):
             exp_val[i] = self.get_pt_reward(eval_pts[i])
         return exp_val
     
-    def _evaluate_at_point_list(self, point_to_evaluate):
-        self.point_current = point_to_evaluate
-        partial_getptreard = partial(self.get_pt_reward)
-        # getptreward = RolloutEI()
-        # getptreward.point_current = point_to_evaluate
-        # getptreward.gpr_model = self.gpr_model
-        # getptreward.tf = self.tf
-        
-        if self.numthreads > 1:
-            serial_mc_iters = [int(self.mc_iters/self.numthreads)] * self.numthreads
-            pool = Pool(processes=self.numthreads)
-            rewards = pool.map(unwrap_self_f, ([self]*5,serial_mc_iters))
-            pool.close()
-            pool.join()
-        else:
-            rewards = self.get_pt_reward(self.point_current, self.mc_iters)
-
-        return np.sum(rewards)/self.numthreads
+    # def _evaluate_at_point_list(self, point_to_evaluate):
+    #     self.point_current = point_to_evaluate
+    #     my_list = [0]*int(self.numthreads/2) + [1]*int(self.numthreads/2)
+    #     th = np.random.shuffle(my_list)
+    #     # print('th ---------',th)
+    #     if self.numthreads > 1:
+    #         serial_mc_iters = [int(int(self.numthreads)/self.numthreads)] * self.numthreads
+    #         print('serial_mc_iters',serial_mc_iters, self.numthreads)
+    #         pool = Pool(processes=self.numthreads)
+    #         rewards = pool.map(self.get_pt_reward, serial_mc_iters)
+    #         pool.close()
+    #         pool.join()
+    #     else:
+    #         rewards = self.get_pt_reward()
+    #     rewards = np.hstack((rewards))
+    #     # print('rewards: ', rewards)
+    #     return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
-    def get_pt_reward(self,current_point, iters=5):
-        reward = 0
+    def get_pt_reward(self, iters=5):
+        # reward = 0
         # for i in range(iters):
-        reward += self.get_h_step_reward(current_point)
-        return reward #(reward/iters)
+        reward = self.get_h_step_reward(self.point_current)
+        print('reward after each MC iter: ', reward)
+        return (reward)
+    
+    def get_h_step_xt(self,current_point):
+        reward = 0
+        # Temporary Gaussian prior 
+        tmp_gpr = copy.deepcopy(self.gpr_model)
+        xtr = copy.deepcopy(self.x_train)  
+        # xtr = np.asarray([i.tolist() for i in xtr])
+        # print('xtr: ', xtr.shape)
+        print()
+        # xtr = [i.tolist() for i in xtr]
+        ytr = copy.deepcopy(self.y_train)
+        h = self.horizon
+        xt = current_point
+        
+        
+        while(True):
+            # print('xt : ', xt)
+            np.random.seed(int(time.time()))
+            mu, std = self._surrogate(tmp_gpr, xt)
+            ri = -1 * np.inf
+            f_xts = []
+            for i in range(4):
+                f_xt = np.random.normal(mu[i],std[i],1)
+                f_xts.append(f_xt[0])
+                ri = max(ri, self.reward(f_xt,ytr))
+            # print('fxts : ',np.asarray(f_xts), xtr)
+            reward += (ri)
+            h -= 1
+            if h <= 0 :
+                break
+            
+            xtr = np.vstack((xtr,xt))
+            ytr = np.hstack((ytr,np.asarray(f_xts)))
+            # print('xtr, ytr shape ',xtr, ytr )
+            tmp_gpr.fit(xtr,ytr)
+            tmp_xt = []
+            for a in self.agent:
+                next_xt = self._opt_acquisition(self.y_train,tmp_gpr,a.region_support,self.rng)
+                tmp_xt.append(next_xt)
+            xt = np.asarray(tmp_xt)
+        return reward
     
     # Rollout for h steps 
     def get_h_step_reward(self,current_point):

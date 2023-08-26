@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 
 from .bointerface import BO_Interface
-from .rolloutEIall import RolloutEI
+from .marlEI import RolloutEI
 from ..gprInterface import GPR
 from ..sampling import uniform_sampling, lhs_sampling
 from ..utils import compute_robustness
@@ -20,6 +20,8 @@ from ..utils.volume import compute_volume
 from ..agent.partition import find_close_factor_pairs, Node, print_tree
 from ..agent.agent import Agent
 from ..agent.constants import *
+from ..utils.timerf import timer_func
+# from time import time
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -53,7 +55,8 @@ class RolloutBO(BO_Interface):
             q.extend(ch)
         # print([i.input_space for i in q])
         return q
-
+    
+    @timer_func
     def sample(
         self,
         test_function: Callable,
@@ -166,7 +169,7 @@ class RolloutBO(BO_Interface):
             #     i.y_train = deepcopy(y_train)
             # for agent in num_agents:
             internal_inactive_subregion_not_node = [i.input_space for i in internal_inactive_subregion]
-            print('internal inactive: ',internal_inactive_subregion_not_node)
+            print('internal inactive: ',internal_inactive_subregion_not_node, internal_inactive_subregion)
             if internal_inactive_subregion != []:
                 self.inactive_subregion = (internal_inactive_subregion_not_node)
                 # self.inactive_subregion = np.hstack(internal_inactive_subregion_not_node)
@@ -183,7 +186,7 @@ class RolloutBO(BO_Interface):
             if (np.size(self.inactive_subregion) != 0):
                 print('at the start inactive subregion: ',self.inactive_subregion)
                 sample_from_inactive_region = self.sample_from_discontinuous_region(30, internal_inactive_subregion, region_support, tf_dim, rng ) #uniform_sampling(5, self.inactive_subregion, tf_dim, rng)
-                # print('samples from inactive: ',sample_from_inactive_region)
+                print('samples from inactive: ',sample_from_inactive_region)
                 # random_samples = np.vstack((random_samples,sample_from_inactive_region))
                 # print(random_samples.shape)
                 internal_inactive_subregion_samples.append(sample_from_inactive_region)
@@ -230,8 +233,8 @@ class RolloutBO(BO_Interface):
                 
                 # print('model: -----s',internal_model)
                 
-            pred_sample_x, min_bo_val = self.ei_roll.sample(agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
-            print('pred x : ', pred_sample_x)
+            pred_sample_x, assignments, X_root = self.ei_roll.sample(X_root, agents, agents_to_subregion, assignments, internal_inactive_subregion, sample_from_inactive_region, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
+            print('pred x in marlBO : ', pred_sample_x)
                 # if agent_idx == 0:
                 #     agent_predictions = self.get_most_min_sample(agents,rng)
                 #     initial_rollout_val = agent_predictions
@@ -285,36 +288,37 @@ class RolloutBO(BO_Interface):
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
             print('pred yyyy : ', pred_sample_y, pred_sample_x)
             min_idx = np.argmin(pred_sample_y)
-            x_train = np.vstack((x_train, pred_sample_x[min_idx,:]))
-            y_train = np.hstack((y_train, min(pred_sample_y)))
+            print('pred_sample_x[min_idx,:]: ',pred_sample_x[min_idx,:], min(pred_sample_y))
+            x_train = np.vstack((x_train, pred_sample_x))
+            y_train = np.hstack((y_train, (pred_sample_y)))
             print('pred x,y : ', x_train, y_train)
 
             for i, preds in enumerate(pred_sample_x):
                 agents[i].point_history.append(preds)
 
-            reassignments = self.reassign_subregion(agents, pred_sample_y, sample_from_inactive_region, model, tf_dim, rng)
-            print('reassignments: ', reassignments)
-            for i, next_reg in enumerate(reassignments):
-                assignments[agents_to_subregion[i]] -= 1
-                if next_reg > num_agents-1:
-                    self.check_inactive(sample_from_inactive_region[next_reg - 2000], agents_to_subregion, internal_inactive_subregion, assignments,i)
-                else:
-                    assignments[agents_to_subregion[next_reg]] += 1
+            # reassignments = self.reassign_subregion(agents, pred_sample_y, sample_from_inactive_region, model, tf_dim, rng)
+            # print('reassignments: ', reassignments)
+            # for i, next_reg in enumerate(reassignments):
+            #     assignments[agents_to_subregion[i]] -= 1
+            #     if next_reg > num_agents-1:
+            #         self.check_inactive(sample_from_inactive_region[next_reg - 2000], agents_to_subregion, internal_inactive_subregion, assignments,i)
+            #     else:
+            #         assignments[agents_to_subregion[next_reg]] += 1
 
-            for i in assignments.keys():
-                if assignments[i] == 1:
-                    i.status = 1
-                if assignments[i] == 0:
-                    i.status = 0
-                if assignments[i] > 1:
-                    # ch = self.split_space(i.input_space, assignments[i], tf_dim)
-                    internal_factorized = sorted(find_close_factor_pairs(assignments[i]), reverse=True)
-                    ch = self.get_subregion(deepcopy(i), assignments[i], internal_factorized)
-                    i.add_child(ch)
-            # self.region_support = self.internal_region_support
-            # print('End of agents work region bounds: ',self.region_support)
+            # for i in assignments.keys():
+            #     if assignments[i] == 1:
+            #         i.status = 1
+            #     if assignments[i] == 0:
+            #         i.status = 0
+            #     if assignments[i] > 1:
+            #         # ch = self.split_space(i.input_space, assignments[i], tf_dim)
+            #         internal_factorized = sorted(find_close_factor_pairs(assignments[i]), reverse=True)
+            #         ch = self.get_subregion(deepcopy(i), assignments[i], internal_factorized)
+            #         i.add_child(ch)
+            # # self.region_support = self.internal_region_support
+            # # print('End of agents work region bounds: ',self.region_support)
             self.assignments.append(assignments)
-            print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
+            # print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
             # print('below lbub inactive_subregion: ',self.inactive_subregion)
             # # contour(self.assignments, region_support, test_function, self.inactive_subregion_samples, sample, random_samples)
             self.agent_point_hist.extend([i.point_history[-1] for i in agents])
@@ -558,7 +562,7 @@ class RolloutBO(BO_Interface):
 
     
 
-
+    @timer_func
     def _opt_acquisition(self, y_train: NDArray, gpr_model: Callable, region_support: NDArray, rng) -> NDArray:
         """Get the sample points
 

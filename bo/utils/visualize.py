@@ -323,7 +323,7 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
         # return fig
     # pio.orca.shutdown_server()
 
-    app.run_server(debug=True)
+    app.run_server(debug=False)
     
 
 # contour()
