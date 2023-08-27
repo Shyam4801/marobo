@@ -87,7 +87,7 @@ class Test_internalBO(unittest.TestCase):
 
 
     def ackley(self):
-        def internal_function(x, lb=None, ub=None): #ackley
+        def internal_function(x, lb=None, ub=None, from_agent = None): #ackley
             n = len(x)
             sum_sq_term = -0.2 * np.sqrt((1/n) * np.sum(x**2))
             cos_term = np.sum(np.cos(2 * np.pi * x))
@@ -96,29 +96,32 @@ class Test_internalBO(unittest.TestCase):
         range_array = np.array([[-4, 5]])  # Range [-4, 5] as a 1x2 array
         region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
 
+        glob_mins = np.array([[2,2],[0.5,0.5]])
+        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+
         seed = 12345
         # region_support = np.array([[-1, 1],[-2, 2]])
 
         gpr_model = InternalGPR()
-        bo = InternalBO()
+        bo = RolloutBO()
 
         init_samp = 5
-        maxbud = 10
+        maxbud = 6
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
             max_budget=maxbud,
             region_support=region_support,
             seed=seed,
+            num_agents= 4,
             behavior=Behavior.MINIMIZATION,
             init_sampling_type="lhs_sampling"
         )
 
-        data, rg = opt(bo, gpr_model)
-
-        name = Test_internalBO.ackley.__name__
-        logdf(data,init_samp,maxbud, name)
-
+        data, rg, plot_res = opt(bo, gpr_model)
+        name = Test_internalBO.himmelblau.__name__
+        minobs = logdf(data,init_samp,maxbud, name)
+        
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
         reduction = ((init_vol - final_vol)/init_vol)* 100
@@ -127,7 +130,12 @@ class Test_internalBO(unittest.TestCase):
         print('_______________________________')
         print('Bounds of final partition: ',rg)
         print('_______________________________')
-
+        print()
+        print('Plotting')
+        
+        # minobs = data.history[np.argmin(data.history[:,2]), :]
+        
+        contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
         assert np.array(data.history, dtype=object).shape[0] == maxbud
         assert np.array(data.history, dtype=object).shape[1] == 3
         
@@ -300,8 +308,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 10
-        maxbud = 20
+        init_samp = 20
+        maxbud = 30
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,

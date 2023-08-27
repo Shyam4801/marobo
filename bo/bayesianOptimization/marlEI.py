@@ -23,7 +23,7 @@ from functools import partial
 from ..agent.agent import Agent
 # from ..agent.constants import *
 from ..utils.volume import compute_volume
-from ..utils.timerf import timer_func
+from ..utils.timerf import logtime, LOGPATH
 # from time import time
   
 class RolloutEI(InternalBO):
@@ -59,7 +59,7 @@ class RolloutEI(InternalBO):
         # print([i.input_space for i in q])
         return q
 
-    @timer_func
+    @logtime(LOGPATH)
     def sample(
         self,
         root,
@@ -130,7 +130,7 @@ class RolloutEI(InternalBO):
             # exit()
             subx = np.hstack((x_opt_from_all)).reshape((4,self.tf_dim))
             if np.size(self.internal_inactive_subregion) != 0:
-                print('self.internal_inactive_subregion inside sampling: ',self.internal_inactive_subregion)
+                print('self.internal_inactive_subregion inside sampling: ',[i.input_space for i in self.internal_inactive_subregion])
                 smp = self.sample_from_discontinuous_region(len(self.internal_inactive_subregion), self.internal_inactive_subregion, region_support, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 subx = np.vstack((subx, smp))
             # print('inside for loop subx ', subx)
@@ -141,8 +141,8 @@ class RolloutEI(InternalBO):
             print()
             print('############################################################################')
             min_idx = np.argmin(suby)
-            internal_inactive_subregion = self.reassign(self.root,self.internal_inactive_subregion, gpr_model,  na, min_idx)
-            self.internal_inactive_subregion.extend(internal_inactive_subregion)
+            self.internal_inactive_subregion = self.reassign(self.root,self.internal_inactive_subregion, gpr_model,  na, min_idx)
+            # self.internal_inactive_subregion.extend(internal_inactive_subregion)
         print('########################### End of MA #################################################')
         print('final subx : ',subx)
         print('############################################################################')
@@ -178,8 +178,8 @@ class RolloutEI(InternalBO):
     #     return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
-    @timer_func
-    def get_pt_reward(self, point_current, iters=100):
+    @logtime(LOGPATH)
+    def get_pt_reward(self, point_current, iters=1):
         reward = []
         for i in range(iters):
             rw = self.get_h_step_all(point_current)
@@ -189,7 +189,7 @@ class RolloutEI(InternalBO):
         print('end of MC iter: ',reward)
         return np.mean(reward, axis=0)
     
-    @timer_func
+    @logtime(LOGPATH)
     def get_h_step_all(self,current_point):
         reward = 0
         # Temporary Gaussian prior 
@@ -289,13 +289,14 @@ class RolloutEI(InternalBO):
             xt = np.asarray(tmp_xt)
         return xt[:4]
     
-    @timer_func
+    @logtime(LOGPATH)
     def reassign(self, X_root,internal_inactive_subregion, tmp_gpr, h, minidx):
         print('curent agent idx ', h)
         self.assignments[self.agents_to_subregion[h]] -= 1
         if minidx >= len(self.agents_to_subregion):
-            self.assignments.update({internal_inactive_subregion[0] : 1})
-            internal_inactive_subregion[0].status = 1
+            self.assignments.update({internal_inactive_subregion[minidx - 4] : 1})
+            print('agent moved to this inactive region : ', internal_inactive_subregion[minidx - 4].input_space)
+            internal_inactive_subregion[minidx - 4].status = 1
         else:
             self.assignments[self.agents_to_subregion[minidx]] += 1
 
@@ -393,7 +394,7 @@ class RolloutEI(InternalBO):
         total_volume = compute_volume(region_support)
         vol_dic = {}
         for reg in regions:
-            print('inside vol dict ', reg)
+            print('inside vol dict ', reg.input_space)
             vol_dic[reg] = compute_volume(reg.input_space) / total_volume
 
         # def target_region(regions, samples):

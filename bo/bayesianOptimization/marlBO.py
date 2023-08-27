@@ -20,7 +20,7 @@ from ..utils.volume import compute_volume
 from ..agent.partition import find_close_factor_pairs, Node, print_tree
 from ..agent.agent import Agent
 from ..agent.constants import *
-from ..utils.timerf import timer_func
+from ..utils.timerf import logtime, LOGPATH
 # from time import time
 
 class RolloutBO(BO_Interface):
@@ -56,7 +56,7 @@ class RolloutBO(BO_Interface):
         # print([i.input_space for i in q])
         return q
     
-    @timer_func
+    @logtime(LOGPATH)
     def sample(
         self,
         test_function: Callable,
@@ -562,7 +562,7 @@ class RolloutBO(BO_Interface):
 
     
 
-    @timer_func
+    @logtime(LOGPATH)
     def _opt_acquisition(self, y_train: NDArray, gpr_model: Callable, region_support: NDArray, rng) -> NDArray:
         """Get the sample points
 
