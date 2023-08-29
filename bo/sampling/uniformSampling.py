@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+from ..utils.volume import compute_volume
 
 def uniform_sampling(
     num_samples: int, region_support: npt.NDArray, tf_dim: int, rng
@@ -40,3 +41,23 @@ def uniform_sampling(
         samples.append(sample)
 
     return np.array(samples).T
+
+
+def sample_from_discontinuous_region(num_samples, regions, region_support, tf_dim, rng, volume=True ):
+        filtered_samples = np.empty((0,tf_dim))
+        # threshold = 0.3
+        total_volume = compute_volume(region_support)
+        vol_dic = {}
+        for reg in regions:
+            print('inside vol dict ', reg.input_space)
+            vol_dic[reg] = compute_volume(reg.input_space) / total_volume
+
+        vol_dic_items = sorted(vol_dic.items(), key=lambda x:x[1])
+        print('vol dict :',vol_dic_items, total_volume)
+        for v in vol_dic_items:
+            tsmp = uniform_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
+            
+            filtered_samples = np.vstack((filtered_samples,tsmp))
+
+        print('filtered_samples: ,', filtered_samples, regions)
+        return filtered_samples

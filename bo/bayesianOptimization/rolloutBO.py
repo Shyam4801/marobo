@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 
 from .bointerface import BO_Interface
-from .marlEI import RolloutEI
+from .rolloutEI import RolloutEI
 from ..gprInterface import GPR
 from ..sampling import uniform_sampling, lhs_sampling
 from ..utils import compute_robustness
@@ -21,7 +21,6 @@ from ..agent.partition import find_close_factor_pairs, Node, print_tree
 from ..agent.agent import Agent
 from ..agent.constants import *
 from ..utils.timerf import logtime, LOGPATH
-# from time import time
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -98,22 +97,13 @@ class RolloutBO(BO_Interface):
         self.agent_point_hist = []
         # Domain reduces after each BO iteration 
         self.region_support = region_support
-        # X_root = Node(region_support)
-        self.inactive_subregion = [] #np.empty((0)).reshape((0,2,2))
-        # self.total_pred_sample_x = []
-        self.inactive_subregion_samples = [np.array([None]),]
-        internal_inactive_subregion = []
-            # internal_inactive_subregion = {value: 0 for value in internal_inactive_subregion}
-        internal_inactive_subregion_samples = []
         self.assignments = []
 
-        self.internal_region_support = self.region_support
         # num_agents = 5
         tf_dim = region_support.shape[0]
-        action = np.zeros((num_agents,tf_dim))
         # split the input space among m agents initially
         # print('just b4 X root: ',region_support)
-        X_root = Node(self.internal_region_support, 1)
+        X_root = Node(self.region_support, 1)
         # agents_to_subregion = self.split_space(X_root.input_space,num_agents, tf_dim)
         # print('b4 agents_to_subregion')
         factorized = sorted(find_close_factor_pairs(num_agents), reverse=True)
@@ -133,196 +123,47 @@ class RolloutBO(BO_Interface):
             self.ei_roll = RolloutEI()
             
             
-            lf = X_root.find_leaves()
-            print('______________below find leaves_______________________')
-            print_tree(X_root)
-            print('_____________________________________')
-            assignments = {}
-            agents_to_subregion = []
-            internal_inactive_subregion=[]
-            for l in lf:
-                if l.status == 1:
-                    assignments.update({l : l.status})
-                    agents_to_subregion.append(l)
-                elif l.status == 0:
-                    internal_inactive_subregion.append(l)
-            # print('after find leaves: ',{l.input_space: l.status for l in lf})
-            # assignments = {l: l.status for l in lf}
-            # self.inactive_subregion_samples = []
-            # self.inactive_subregion = []
-            # print('after agents_to_subregion', self.inactive_subregion)
+            # lf = X_root.find_leaves()
+            # print('______________below find leaves_______________________')
+            # print_tree(X_root)
+            # print('_____________________________________')
+            # assignments = {}
+            # agents_to_subregion = []
+            # internal_inactive_subregion=[]
+            # for l in lf:
+            #     if l.status == 1:
+            #         assignments.update({l : l.status})
+            #         agents_to_subregion.append(l)
+            #     elif l.status == 0:
+            #         internal_inactive_subregion.append(l)
             
-            print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
-            print('lf size: ', len(lf))
+            # print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
+            # print('lf size: ', len(lf))
             
-            xtr = deepcopy(x_train)
-            ytr = deepcopy(y_train)
-            agents = [Agent(model, xtr, ytr, agents_to_subregion[a].input_space) for a in range(num_agents)]
-            print('agents_to_subregion : ',agents_to_subregion)
-            for i,sub in enumerate(agents_to_subregion):
-                sub.update_agent(agents[i])
+            # xtr = deepcopy(x_train)
+            # ytr = deepcopy(y_train)
+            # agents = [Agent(model, xtr, ytr, agents_to_subregion[a].input_space) for a in range(num_agents)]
+            # print('agents_to_subregion : ',agents_to_subregion)
+            # for i,sub in enumerate(agents_to_subregion):
+            #     sub.update_agent(agents[i])
             
-            final_agents_predictions_val = []
-            agent_ei = np.empty((num_agents,num_agents))
-            # for i in agents:
-            #     i.x_train = deepcopy(x_train)
-            #     i.y_train = deepcopy(y_train)
-            # for agent in num_agents:
-            internal_inactive_subregion_not_node = [i.input_space for i in internal_inactive_subregion]
-            print('internal inactive: ',internal_inactive_subregion_not_node, internal_inactive_subregion)
-            if internal_inactive_subregion != []:
-                self.inactive_subregion = (internal_inactive_subregion_not_node)
-                # self.inactive_subregion = np.hstack(internal_inactive_subregion_not_node)
-                # print('check from ass: ',self.inactive_subregion, np.size(self.inactive_subregion))
-                # lb = np.min(self.inactive_subregion,axis=1)
-                # ub = np.max(self.inactive_subregion,axis=1)
-                # print('lbub: ',lb,ub)
-                # self.inactive_subregion = np.vstack((lb,ub)).T
+
+            # internal_inactive_subregion_not_node = [i.input_space for i in internal_inactive_subregion]
+            # print('internal inactive: ',internal_inactive_subregion_not_node, internal_inactive_subregion)
+            # if internal_inactive_subregion != []:
+            #     self.inactive_subregion = (internal_inactive_subregion_not_node)
             
-            final_sample_val = np.inf
-            print()
-            print('_______________________________ AGENTS AT WORK ___________________________________')
-            sample_from_inactive_region = []
-            if (np.size(self.inactive_subregion) != 0):
-                print('at the start inactive subregion: ',self.inactive_subregion)
-                sample_from_inactive_region = self.sample_from_discontinuous_region(30, internal_inactive_subregion, region_support, tf_dim, rng ) #uniform_sampling(5, self.inactive_subregion, tf_dim, rng)
-                print('samples from inactive: ',sample_from_inactive_region)
-                # random_samples = np.vstack((random_samples,sample_from_inactive_region))
-                # print(random_samples.shape)
-                internal_inactive_subregion_samples.append(sample_from_inactive_region)
-                self.inactive_subregion_samples.append(sample_from_inactive_region)
-            # print('random_samples, sample_from_inactive_region----->',random_samples, sample_from_inactive_region)
-            # for agent in agents:
-            #     predx_internal, minboval =  self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng)
-            #     print('predxinternal ',predx_internal)
-            #     predy_internal, falsified = compute_robustness(np.array([predx_internal]), test_function, behavior, agent_sample=True)
-            #     agent.x_train = np.vstack((agent.x_train, np.array([predx_internal])))
-            #     agent.y_train = np.hstack((agent.y_train, predy_internal))
+            # print('_______________________________ AGENTS AT WORK ___________________________________')           
                 
-            #     internal_model = GPR(gpr_model)
-            #     internal_model.fit(agent.x_train, agent.y_train)
-            #     agent.model = internal_model
-            # initial_rollout_val = []
-            # for agent_idx, agent in enumerate(agents):
-            #     # rollout_samples = uniform_sampling(5, agent.region_support, tf_dim, rng)
-            #     print('below rollout sample: ', agent.region_support)
-            #     if agent_idx == 0 and (np.size(self.inactive_subregion) != 0):
-            #         # agent.x_train = np.vstack((agent.x_train,sample_from_inactive_region))
-            #         ei_inactive = -1 * self._acquisition(agent.y_train, sample_from_inactive_region, agent.model, sample_type ="multiple")
-            #         print('ei inactive: ',ei_inactive)
-
-                # if agent_idx != 0 :
-                #     print('inside appending :', agent.x_train.shape, np.array([agents[agent_idx-1].point_history[-1]]).shape)
-                #     # agent.x_train = np.vstack(( agent.x_train, np.array([agents[agent_idx-1].point_history[-1]])))
-                #     # for a in range(agent_idx):
-                #     agent.x_train = np.vstack(( agent.x_train, agents[agent_with_best_sample].point_history[-1]))
-                #     agent.y_train, falsified = compute_robustness(agent.x_train, test_function, behavior, agent_sample=True)
-                #     internal_model = GPR(gpr_model)
-                #     internal_model.fit(agent.x_train, agent.y_train)
-                #     # agent.model = internal_model
-                #     for a in agents[:agent_idx+1]:
-                #         a.update_model(internal_model)
-                # print('agent id : ',agent_idx, 'agent samples: ',agent.x_train, 'assignements: ',assignments )
-                # best_sample = self.rollout_acquisition(agent, gpr_model, rollout_samples, test_function, behavior, rng)
-                # print('best sample : ',best_sample)
-                
-
-                # agent.x_train = np.vstack((agent.x_train, np.array([best_sample])))
-                # agent.y_train = ysmp #np.hstack((agent.y_train, ysmp))
-                # print('agent.y_train: ', agent.y_train)
-                
-                # print('model: -----s',internal_model)
-                
-            pred_sample_x, assignments, X_root = self.ei_roll.sample(X_root, agents, agents_to_subregion, assignments, internal_inactive_subregion, sample_from_inactive_region, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
-            print('pred x in marlBO : ', pred_sample_x)
-                # if agent_idx == 0:
-                #     agent_predictions = self.get_most_min_sample(agents,rng)
-                #     initial_rollout_val = agent_predictions
-                # else:
-                #     agent_predictions = self.get_most_min_sample(agents[:agent_idx+1],rng)
-                #     initial_rollout_val[:agent_idx+1] = agent_predictions
-                # print('agent rollout values :', initial_rollout_val)
-
-                # agent_predictions = initial_rollout_val
-                # agent_with_best_sample = np.argmin(agent_predictions)
-                # final_sample_val = min(final_sample_val, min(agent_predictions))
-                # final_agents_predictions_val.append(final_sample_val)
-                # final_predx = agents[agent_with_best_sample].point_history[-1]
-                # print('final sample: ',final_sample_val, final_predx, 'agent: ',agent_idx,'agent_with_best_sample:',agent_with_best_sample,'agents[agent_with_best_sample].point_history: ',agents[agent_with_best_sample].point_history )
-
-            #     ei_across = self.get_ei_across_regions(agent_idx, agents, rng)
-            #     agent_ei[agent_idx] = np.array(ei_across) #np.vstack((agent_ei, np.array(ei_across)))
-            #     print('agent ei 4x4 matrix: ', agent_ei)
-
-            # inact = []
-            # for agent_idx in range(num_agents):
-            #     if agent_idx == 0 and np.size(self.inactive_subregion) != 0:
-            #         per_ei = np.hstack((agent_ei[:,agent_idx],ei_inactive))
-            #         # print('agent_predictions after ei inactive',per_ei)
-            #     else:
-            #         per_ei = agent_ei[:,agent_idx]
-            #     print('agent_predictions after ei',per_ei)
-                
-            #     point_pred = self.get_point_pred(per_ei)
-            #     print('point_pred: ',point_pred)
-
-            #     # assigned_subregion = np.random.multinomial(1000, point_pred, size=1)
-            #     # print('assigned_subregion: ',assigned_subregion)
-            #     assignments[agents_to_subregion[agent_idx]] -= 1
-            #     if np.argmin(per_ei) > len(agents_to_subregion) - 1:
-            #         self.check_inactive(sample_from_inactive_region[np.argmin(per_ei) - len(agents_to_subregion)], agents_to_subregion, internal_inactive_subregion, assignments,agent_idx)
-            #         # lf = X_root.find_leaves()
-            #         # for l in lf:
-            #         #     if l.status == 1:
-            #         #         assignments.update({l : l.status})
-            #         #         agents_to_subregion.append(l)
-            #         #     elif l.status == 0:
-            #         #         internal_inactive_subregion.append(l)
-            #     else:
-            #         assignments[agents_to_subregion[np.argmin(per_ei)]] += 1
-            #         # agents_to_subregion[np.argmax(per_ei)].status = 1
-            
-            # # assignments, self.internal_region_support, not_inside_any = self.modify_subregion(final_predx, agents_to_subregion, internal_inactive_subregion, assignments, agent_idx,agent, agent_with_best_sample)
-            # print('self.internal_region_support after: ',self.internal_region_support)
-                
+            pred_sample_x, assignments, X_root, agents = self.ei_roll.sample(X_root, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
-            print('pred yyyy : ', pred_sample_y, pred_sample_x)
-            min_idx = np.argmin(pred_sample_y)
-            print('pred_sample_x[min_idx,:]: ',pred_sample_x[min_idx,:], min(pred_sample_y))
+            
             x_train = np.vstack((x_train, pred_sample_x))
             y_train = np.hstack((y_train, (pred_sample_y)))
-            print('pred x,y : ', x_train, y_train)
+            print('pred x,y appended: ', x_train, y_train)
 
-            for i, preds in enumerate(pred_sample_x):
-                agents[i].point_history.append(preds)
-
-            # reassignments = self.reassign_subregion(agents, pred_sample_y, sample_from_inactive_region, model, tf_dim, rng)
-            # print('reassignments: ', reassignments)
-            # for i, next_reg in enumerate(reassignments):
-            #     assignments[agents_to_subregion[i]] -= 1
-            #     if next_reg > num_agents-1:
-            #         self.check_inactive(sample_from_inactive_region[next_reg - 2000], agents_to_subregion, internal_inactive_subregion, assignments,i)
-            #     else:
-            #         assignments[agents_to_subregion[next_reg]] += 1
-
-            # for i in assignments.keys():
-            #     if assignments[i] == 1:
-            #         i.status = 1
-            #     if assignments[i] == 0:
-            #         i.status = 0
-            #     if assignments[i] > 1:
-            #         # ch = self.split_space(i.input_space, assignments[i], tf_dim)
-            #         internal_factorized = sorted(find_close_factor_pairs(assignments[i]), reverse=True)
-            #         ch = self.get_subregion(deepcopy(i), assignments[i], internal_factorized)
-            #         i.add_child(ch)
-            # # self.region_support = self.internal_region_support
-            # # print('End of agents work region bounds: ',self.region_support)
-            self.assignments.append(assignments)
-            # print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
-            # print('below lbub inactive_subregion: ',self.inactive_subregion)
-            # # contour(self.assignments, region_support, test_function, self.inactive_subregion_samples, sample, random_samples)
-            self.agent_point_hist.extend([i.point_history[-1] for i in agents])
-            # print('self.agent_point_hist: ',self.agent_point_hist)
+        self.assignments.append(assignments)
+        self.agent_point_hist.extend([i.point_history[-1] for i in agents])
         print('_______________________________ TREE _______________________________')
         print_tree(X_root)
         print('____________________________________________________________________')
@@ -332,11 +173,11 @@ class RolloutBO(BO_Interface):
         print('Active partitions: ', [{str(k.input_space) : v} for k,v in assignments.items()])
         print('_______________________________')
         # print("End of BO iter: ", test_function.agent_point_history)
-        plot_dict = {'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
+        plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
             # X_root.add_child(self.region_support)
         return falsified, self.region_support, plot_dict
 
-
+'''
     def sample_from_discontinuous_region(self, num_samples, regions, region_support, tf_dim, rng, volume=True ):
         filtered_samples = np.empty((0,tf_dim))
         # threshold = 0.3
@@ -702,3 +543,5 @@ class RolloutBO(BO_Interface):
             return_ei = ei
 
         return return_ei
+    
+    '''

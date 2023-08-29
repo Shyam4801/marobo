@@ -10,7 +10,7 @@ from bo.gprInterface import InternalGPR
 from bo.utils import Fn, compute_robustness
 from bo.sampling import uniform_sampling
 from bo.bayesianOptimization.internalBO import InternalBO
-from bo.bayesianOptimization.marlBO import RolloutBO
+from bo.bayesianOptimization.rolloutBO import RolloutBO
 from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
@@ -308,8 +308,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 20
-        maxbud = 30
+        init_samp = 5
+        maxbud = 7
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -339,8 +339,8 @@ class Test_internalBO(unittest.TestCase):
         
         # minobs = data.history[np.argmin(data.history[:,2]), :]
         
-        contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        assert np.array(data.history, dtype=object).shape[0] == maxbud
+        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
         assert np.array(data.history, dtype=object).shape[1] == 3
 
 

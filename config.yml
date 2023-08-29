@@ -1,0 +1,3 @@
+sampling:
+  mc_iters: 1
+  num_inactive: 10

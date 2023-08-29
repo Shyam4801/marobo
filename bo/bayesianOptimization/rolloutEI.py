@@ -13,7 +13,7 @@ from .internalBO import InternalBO
 from ..agent.partition import find_close_factor_pairs, Node, print_tree
 from ..gprInterface import GPR
 from bo.gprInterface import InternalGPR
-from ..sampling import uniform_sampling
+from ..sampling import uniform_sampling, sample_from_discontinuous_region
 from ..utils import compute_robustness
 from ..behavior import Behavior
 import multiprocessing as mp
@@ -24,7 +24,10 @@ from ..agent.agent import Agent
 # from ..agent.constants import *
 from ..utils.volume import compute_volume
 from ..utils.timerf import logtime, LOGPATH
-import numba
+import yaml
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
   
 class RolloutEI(InternalBO):
     def __init__(self) -> None:
@@ -63,11 +66,11 @@ class RolloutEI(InternalBO):
     def sample(
         self,
         root,
-        agent,
-        agents_to_subregion,
-        assignments,
-        internal_inactive_subregion, 
-        sample_from_inactive_region,
+        num_agents,
+        # root,
+        # agent,
+        # agents_to_subregion,
+        # assignments,
         test_function: Callable,
         x_train,
         horizon: int,
@@ -93,13 +96,12 @@ class RolloutEI(InternalBO):
         Returns:
             next x values that have minimum h step reward 
         """
-        self.mc_iters = 5
+        self.mc_iters = configs['sampling']['mc_iters']
+        print('below yml read',self.mc_iters)
         self.root = root
-        self.agent = agent
-        self.assignments = assignments
-        self.agents_to_subregion = agents_to_subregion
-        self.internal_inactive_subregion = internal_inactive_subregion, 
-        self.sample_from_inactive_region = sample_from_inactive_region,
+        # self.agent = agent
+        # self.assignments = assignments
+        # self.agents_to_subregion = agents_to_subregion
         self.numthreads = int(mp.cpu_count()/2)
         self.tf = test_function
         self.x_train = x_train
@@ -108,17 +110,53 @@ class RolloutEI(InternalBO):
         self.region_support = region_support
         self.rng = rng
         self.tf_dim = region_support.shape[0]
-        num_samples = 5
         self.y_train = y_train #copy.deepcopy(np.asarray(test_function.point_history,dtype=object)[:,-1])
 
-        self.internal_inactive_subregion = []
-        print('self.internal_inactive_subregion: ',self.internal_inactive_subregion)
 
-        for na in range(len(agent)):
+        lf = self.root.find_leaves()
+        print('______________below find leaves_______________________')
+        print_tree(self.root)
+        print('_____________________________________')
+        assignments = {}
+        agents_to_subregion = []
+        internal_inactive_subregion=[]
+        for l in lf:
+            if l.status == 1:
+                assignments.update({l : l.status})
+                agents_to_subregion.append(l)
+            elif l.status == 0:
+                internal_inactive_subregion.append(l)
+        
+        print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
+        print('lf size: ', len(lf))
+        
+        xtr = deepcopy(x_train)
+        ytr = deepcopy(y_train)
+        agents = [Agent(gpr_model, xtr, ytr, agents_to_subregion[a].input_space) for a in range(num_agents)]
+        print('agents_to_subregion : ',agents_to_subregion)
+        for i,sub in enumerate(agents_to_subregion):
+            sub.update_agent(agents[i])
+        
+
+        # internal_inactive_subregion_not_node = [i.input_space for i in internal_inactive_subregion]
+        print('internal inactive: ', internal_inactive_subregion)
+        # if internal_inactive_subregion != []:
+        #     self.inactive_subregion = (internal_inactive_subregion_not_node)
+        
+        print('_______________________________ AGENTS AT WORK ___________________________________')  
+
+        self.internal_inactive_subregion = internal_inactive_subregion
+        print('self.internal_inactive_subregion: ',self.internal_inactive_subregion)
+        self.agent = agents
+        self.assignments = assignments
+        self.agents_to_subregion = agents_to_subregion
+        self.num_agents = num_agents
+
+        for na in range(len(agents)):
             
             # Choosing the next point
             x_opt_from_all = []
-            for i,a in enumerate(agent):
+            for i,a in enumerate(agents):
                 # smp = uniform_sampling(5, a.region_support, tf_dim, rng)
                 x_opt = self._opt_acquisition(y_train, gpr_model, a.region_support, rng) 
                 # smp = np.vstack((smp, x_opt))
@@ -128,10 +166,10 @@ class RolloutEI(InternalBO):
             # print('x_opt_from_all: ', np.hstack((x_opt_from_all)).reshape((6,4,2)))
             # Generate a sample dataset to rollout and find h step observations
             # exit()
-            subx = np.hstack((x_opt_from_all)).reshape((4,self.tf_dim))
+            subx = np.hstack((x_opt_from_all)).reshape((num_agents,self.tf_dim))
             if np.size(self.internal_inactive_subregion) != 0:
                 print('self.internal_inactive_subregion inside sampling: ',[i.input_space for i in self.internal_inactive_subregion])
-                smp = self.sample_from_discontinuous_region(len(self.internal_inactive_subregion), self.internal_inactive_subregion, region_support, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, region_support, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 subx = np.vstack((subx, smp))
             # print('inside for loop subx ', subx)
             suby = -1 * self.get_exp_values(subx)
@@ -140,13 +178,16 @@ class RolloutEI(InternalBO):
             print('suby: rollout for 2 horizons with 6 sampled points  :',suby, ' subx:', subx)
             print()
             print('############################################################################')
-            min_idx = np.argmin(suby)
-            self.internal_inactive_subregion = self.reassign(self.root,self.internal_inactive_subregion, gpr_model,  na, min_idx)
+            minidx = np.argmin(suby)
+            self.internal_inactive_subregion = self.reassign(self.root,self.internal_inactive_subregion, gpr_model,  na, minidx, subx)
             # self.internal_inactive_subregion.extend(internal_inactive_subregion)
         print('########################### End of MA #################################################')
         print('final subx : ',subx)
         print('############################################################################')
-        return subx[:4], self.assignments, root
+        for i, preds in enumerate(subx[:num_agents]):
+                self.agent[i].point_history.append(preds)
+
+        return subx[:num_agents], self.assignments, root, self.agent
 
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self,eval_pts):
@@ -177,9 +218,9 @@ class RolloutEI(InternalBO):
     # Perform Monte carlo itegration
     # @logtime(LOGPATH)
     # @numba.jit(nopython=True, parallel=True)
-    def get_pt_reward(self,point_current, iters=10):
+    def get_pt_reward(self,point_current):
         reward = []
-        for i in numba.prange(iters):
+        for i in range(self.mc_iters):
             rw = self.get_h_step_all(point_current)
             reward.append(rw)
             print('reward after each MC iter: ', reward)
@@ -205,7 +246,7 @@ class RolloutEI(InternalBO):
         print('empty reward: ',reward)
         while(True):
             # print('xt : ', xt)
-            np.random.seed(int(time.time()))
+            # np.random.seed(int(time.time()))
             mu, std = self._surrogate(tmp_gpr, xt)
             ri = -1 * np.inf
             f_xts = []
@@ -231,70 +272,25 @@ class RolloutEI(InternalBO):
                 tmp_xt.append(next_xt)
             xt = np.asarray(tmp_xt)
             if np.size(self.internal_inactive_subregion) != 0:
-                smp = self.sample_from_discontinuous_region(len(self.internal_inactive_subregion), self.internal_inactive_subregion, self.region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                print('len(self.internal_inactive_subregion)', len(self.internal_inactive_subregion), configs['sampling']['num_inactive'])
+                smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, self.region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 xt = np.vstack((xt, smp))
         print('rewards b4 summing up: ',np.array(reward, dtype='object'))
         reward = np.array(reward, dtype='object')
         return np.sum(reward,axis=0)
     
-    def get_h_step_xt(self,current_point):
-        reward = 0
-        internal_inactive_subregion = []
-        # Temporary Gaussian prior 
-        tmp_gpr = copy.deepcopy(self.gpr_model)
-        xtr = copy.deepcopy(self.x_train)  
-        # xtr = np.asarray([i.tolist() for i in xtr])
-        # print('xtr: ', xtr.shape)
-        # xtr = [i.tolist() for i in xtr]
-        ytr = copy.deepcopy(self.y_train)
-        h = self.horizon
-        xt = current_point
-        idx = -1
-        
-        while(True):
-            # print('xt : ', xt)
-            np.random.seed(123)
-            print('internal_inactive_subregion: ',internal_inactive_subregion)
-            if internal_inactive_subregion != []:
-                smp = uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
-                xt = np.vstack((xt, smp))
-            mu, std = self._surrogate(tmp_gpr, xt)
-            # in_mu, in_std = self._surrogate(tmp_gpr, smp)
-            ri = np.empty(0) #-1 * np.inf
-            f_xts = []
-            for i in range(len(xt)):
-                f_xt = np.random.normal(mu[i],std[i],1)
-                f_xts.append(f_xt[0])
-                ri = np.hstack((ri, self.reward(f_xt,ytr)))
-            # print('fxts : ',np.asarray(f_xts), xtr)
-            # reward += (ri)
-            idx += 1
-            h -= 1
-            if h <= 0 :
-                break
-            print('ri : ', ri)
-            minidx = np.argmax(ri)
-            print('xt[minidx]: ',minidx, xt[minidx])
-            xtr = np.vstack((xtr,xt[minidx]))
-            ytr = np.hstack((ytr,np.asarray(f_xts[minidx])))
-            # print('xtr, ytr shape ',xtr, ytr )
-            tmp_gpr.fit(xtr,ytr)
-            tmp_xt = []
-            internal_inactive_subregion = self.reassign(self.root,internal_inactive_subregion, tmp_gpr,  idx, minidx)
-            for a in self.agent:
-                next_xt = self._opt_acquisition(self.y_train,tmp_gpr,a.region_support,self.rng)
-                tmp_xt.append(next_xt)
-            xt = np.asarray(tmp_xt)
-        return xt[:4]
     
     @logtime(LOGPATH)
-    def reassign(self, X_root,internal_inactive_subregion, tmp_gpr, h, minidx):
+    def reassign(self, X_root,internal_inactive_subregion, tmp_gpr, h, minidx, subx):
         print('curent agent idx ', h)
+        
         self.assignments[self.agents_to_subregion[h]] -= 1
         if minidx >= len(self.agents_to_subregion):
-            self.assignments.update({internal_inactive_subregion[minidx - 4] : 1})
-            print('agent moved to this inactive region : ', internal_inactive_subregion[minidx - 4].input_space)
-            internal_inactive_subregion[minidx - 4].status = 1
+            # print('minidx : ',minidx, self.internal_inactive_subregion)
+            inactive_reg_idx = self.check_inactive(subx[minidx], internal_inactive_subregion)
+            self.assignments.update({internal_inactive_subregion[inactive_reg_idx] : 1})
+            print('agent moved to this inactive region : ', internal_inactive_subregion[inactive_reg_idx].input_space)
+            internal_inactive_subregion[inactive_reg_idx].status = 1
         else:
             self.assignments[self.agents_to_subregion[minidx]] += 1
 
@@ -337,47 +333,7 @@ class RolloutEI(InternalBO):
             sub.update_agent(self.agent[i])
         return internal_inactive_subregion
 
-    # Rollout for h steps 
-    def get_h_step_reward(self,current_point):
-        reward = 0
-        # Temporary Gaussian prior 
-        tmp_gpr = copy.deepcopy(self.gpr_model)
-        xtr = copy.deepcopy(self.x_train)  
-        # xtr = np.asarray([i.tolist() for i in xtr])
-        # print('xtr: ', xtr.shape)
-        print()
-        # xtr = [i.tolist() for i in xtr]
-        ytr = copy.deepcopy(self.y_train)
-        h = self.horizon
-        xt = current_point
-        
-        
-        while(True):
-            # print('xt : ', xt)
-            np.random.seed(int(time.time()))
-            mu, std = self._surrogate(tmp_gpr, xt)
-            ri = -1 * np.inf
-            f_xts = []
-            for i in range(4):
-                f_xt = np.random.normal(mu[i],std[i],1)
-                f_xts.append(f_xt[0])
-                ri = max(ri, self.reward(f_xt,ytr))
-            # print('fxts : ',np.asarray(f_xts), xtr)
-            reward += (ri)
-            h -= 1
-            if h <= 0 :
-                break
-            
-            xtr = np.vstack((xtr,xt))
-            ytr = np.hstack((ytr,np.asarray(f_xts)))
-            # print('xtr, ytr shape ',xtr, ytr )
-            tmp_gpr.fit(xtr,ytr)
-            tmp_xt = []
-            for a in self.agent:
-                next_xt = self._opt_acquisition(self.y_train,tmp_gpr,a.region_support,self.rng)
-                tmp_xt.append(next_xt)
-            xt = np.asarray(tmp_xt)
-        return reward
+   
     
     # Reward is the difference between the observed min and the obs from the posterior
     def reward(self,f_xt,ytr):
@@ -386,60 +342,28 @@ class RolloutEI(InternalBO):
         # print(' each regret : ', r)
         return r
     
-    def sample_from_discontinuous_region(self, num_samples, regions, region_support, tf_dim, rng, volume=True ):
-        filtered_samples = np.empty((0,tf_dim))
-        # threshold = 0.3
-        total_volume = compute_volume(region_support)
-        vol_dic = {}
-        for reg in regions:
-            print('inside vol dict ', reg.input_space)
-            vol_dic[reg] = compute_volume(reg.input_space) / total_volume
-
-        # def target_region(regions, samples):
-        #     print('inside target region , ', samples )
-        #     for sample_point in samples:
-        #         for i, subregion in enumerate(regions):
-        #             # print(subregion.input_space.shape)
-        #             inside = True
-        #             for d in range(len(subregion)):
-        #                 lb,ub = subregion[d]
-        #                 if sample_point[d] >= lb or sample_point[d] <= ub:
-        #                     weight = compute_volume(subregion) / total_volume
-        #                     # print('sample, wt, subregion: ', sample_point, weight, subregion)
-        #                     if bool(int(num_samples * weight)):
-        #                         # filtered_samples = np.vstack((filtered_samples,sample_point)) 
-        #                         return True, sample_point
-        #     return False, None
-        vol_dic_items = sorted(vol_dic.items(), key=lambda x:x[1])
-        print('vol dict :',vol_dic_items, total_volume)
-        for v in vol_dic_items:
-            tsmp = uniform_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
+    
+    def check_inactive(self,sample_point, inactive_subregion):
+        
+        print('inside check inactive')
+        # for sample_point in sample_points:
+        for i, subregion in enumerate(inactive_subregion):
+        # print(subregion.input_space.shape)
+            inside_inactive = True
+            for d in range(len(subregion.input_space)):
+                lb,ub = subregion.input_space[d]
+                if sample_point[d] < lb or sample_point[d] > ub:
+                    inside_inactive = False
             
-            filtered_samples = np.vstack((filtered_samples,tsmp))
-
-        # while len(filtered_samples) < num_samples:
-        #     # Generate random points in the larger bounding box [-5,-5][5,5]
-        #     test_samples = uniform_sampling(10, self.inactive_subregion, tf_dim, rng)
-        #     print('uniform samples :',test_samples)
-        #     # Check if the point is within the desired region
-        #     isin, pt = target_region(regions, test_samples)
-        #     if isin:
-        #         filtered_samples = np.vstack((filtered_samples,pt)) 
-        #     print('len(filtered_samples): ',len(filtered_samples))
-        # print('filtered_samples: ,', filtered_samples, regions)
-
-        return filtered_samples
-    
-    def get_ei_across_regions(self, agent_idx, agent_posterior, rng):
-        agent_eis = []
-        # print('region support inside get_most_min_sample: ',agent.region_support)
-        for agent in agent_posterior:
-            print('agent idx inside across regions: ',agent_idx, 'curr region :',agent.region_support)
-        # predx, min_bo_val = self.ei_roll.sample(agent, self.tf, self.horizon, agent.y_train, agent.region_support, agent.model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
-            predx, min_bo_val = self._opt_acquisition(agent_posterior[agent_idx].y_train, agent_posterior[agent_idx].model, agent.region_support, rng) 
-            agent_eis.append(min_bo_val)
-            # agent.add_point(predx)
-        print('inside get most min sample : ',agent_eis)
-        return agent_eis
-    
-    
+            if inside_inactive: 
+                print('inside sub reg :', inactive_subregion[i].input_space)
+                return i
+                # fall_under.append(subregion)
+                # print('fall under : ',fall_under, inactive_subregion[i].input_space)
+                # # inactive_subregion[subregion] += 1
+                # # assignments[agents_to_subregion[agent_idx]] -= 1
+                # if assignments[agents_to_subregion[agent_idx]] == 0:
+                #     agents_to_subregion[agent_idx].status = 0
+                # inactive_subregion[i].status = 1
+                # # agent.update_bounds(subregion)
+                # not_inside_any = True
