@@ -24,7 +24,7 @@ from ..agent.agent import Agent
 # from ..agent.constants import *
 from ..utils.volume import compute_volume
 from ..utils.timerf import logtime, LOGPATH
-# from time import time
+import numba
   
 class RolloutEI(InternalBO):
     def __init__(self) -> None:
@@ -161,9 +161,6 @@ class RolloutEI(InternalBO):
     
     # def _evaluate_at_point_list(self, point_to_evaluate):
     #     self.point_current = point_to_evaluate
-    #     my_list = [0]*int(self.numthreads/2) + [1]*int(self.numthreads/2)
-    #     th = np.random.shuffle(my_list)
-    #     # print('th ---------',th)
     #     if self.numthreads > 1:
     #         serial_mc_iters = [int(int(self.numthreads)/self.numthreads)] * self.numthreads
     #         print('serial_mc_iters',serial_mc_iters, self.numthreads)
@@ -178,10 +175,11 @@ class RolloutEI(InternalBO):
     #     return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
-    @logtime(LOGPATH)
-    def get_pt_reward(self, point_current, iters=1):
+    # @logtime(LOGPATH)
+    # @numba.jit(nopython=True, parallel=True)
+    def get_pt_reward(self,point_current, iters=10):
         reward = []
-        for i in range(iters):
+        for i in numba.prange(iters):
             rw = self.get_h_step_all(point_current)
             reward.append(rw)
             print('reward after each MC iter: ', reward)
