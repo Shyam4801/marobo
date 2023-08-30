@@ -1,5 +1,5 @@
 from time import time
-LOGPATH = '/Users/shyamsundar/ASU/sem2/RA/partma/results/timerlog.txt'
+LOGPATH = 'results/timerlog.txt'
 
 def logtime(path_to_logfile):
     def timer_func(func):

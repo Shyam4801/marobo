@@ -97,7 +97,7 @@ class RolloutEI(InternalBO):
             next x values that have minimum h step reward 
         """
         self.mc_iters = configs['sampling']['mc_iters']
-        print('below yml read',self.mc_iters)
+        print('below yml read mc_iters',self.mc_iters)
         self.root = root
         # self.agent = agent
         # self.assignments = assignments
@@ -224,7 +224,7 @@ class RolloutEI(InternalBO):
             rw = self.get_h_step_all(point_current)
             reward.append(rw)
             print('reward after each MC iter: ', reward)
-            print('########################### Next MC iter #################################################')
+            print(f'########################### Next MC iter {i} #################################################')
         reward = np.array(reward, dtype='object')
         print('end of MC iter: ',reward)
         return np.mean(reward, axis=0)
@@ -244,7 +244,7 @@ class RolloutEI(InternalBO):
         xt = current_point
         
         reward = []
-        print('empty reward: ',reward)
+        # print('empty reward: ',reward)
         while(True):
             # print('xt : ', xt)
             # np.random.seed(int(time.time()))
@@ -258,7 +258,7 @@ class RolloutEI(InternalBO):
                 rws[i] = (self.reward(f_xt,ytr))
             # print('fxts : ',np.asarray(f_xts), xtr)
             reward.append(rws)
-            print('h ; rw :',h, reward)
+            # print('h ; rw :',h, reward)
             h -= 1
             if h <= 0 :
                 break
@@ -273,10 +273,10 @@ class RolloutEI(InternalBO):
                 tmp_xt.append(next_xt)
             xt = np.asarray(tmp_xt)
             if np.size(self.internal_inactive_subregion) != 0:
-                print('len(self.internal_inactive_subregion)', len(self.internal_inactive_subregion), configs['sampling']['num_inactive'])
+                # print('len(self.internal_inactive_subregion)', len(self.internal_inactive_subregion), configs['sampling']['num_inactive'])
                 smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, self.region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 xt = np.vstack((xt, smp))
-        print('rewards b4 summing up: ',np.array(reward, dtype='object'))
+        # print('rewards b4 summing up: ',np.array(reward, dtype='object'))
         reward = np.array(reward, dtype='object')
         return np.sum(reward,axis=0)
     
@@ -346,7 +346,7 @@ class RolloutEI(InternalBO):
     
     def check_inactive(self,sample_point, inactive_subregion):
         
-        print('inside check inactive')
+        # print('inside check inactive')
         # for sample_point in sample_points:
         for i, subregion in enumerate(inactive_subregion):
         # print(subregion.input_space.shape)
@@ -357,7 +357,7 @@ class RolloutEI(InternalBO):
                     inside_inactive = False
             
             if inside_inactive: 
-                print('inside sub reg :', inactive_subregion[i].input_space)
+                # print('inside sub reg :', inactive_subregion[i].input_space)
                 return i
                 # fall_under.append(subregion)
                 # print('fall under : ',fall_under, inactive_subregion[i].input_space)
