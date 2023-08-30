@@ -169,7 +169,7 @@ class RolloutEI(InternalBO):
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,self.tf_dim))
             if np.size(self.internal_inactive_subregion) != 0:
                 print('self.internal_inactive_subregion inside sampling: ',[i.input_space for i in self.internal_inactive_subregion])
-                smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, region_support, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 subx = np.vstack((subx, smp))
             # print('inside for loop subx ', subx)
             suby = -1 * self.get_exp_values(subx)
@@ -224,6 +224,7 @@ class RolloutEI(InternalBO):
             rw = self.get_h_step_all(point_current)
             reward.append(rw)
             print('reward after each MC iter: ', reward)
+            print('########################### Next MC iter #################################################')
         reward = np.array(reward, dtype='object')
         print('end of MC iter: ',reward)
         return np.mean(reward, axis=0)

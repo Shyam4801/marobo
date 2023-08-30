@@ -9,7 +9,18 @@ from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
 import plotly.io as pio
 pio.renderers.default = "browser"
+import os
 
+def plot_convergence(df, name):
+    plt.plot(df.index,df['ysofar'])
+    plt.xlabel('Iterations')
+    plt.ylabel('Regret')
+    if not os.path.exists(name):
+        os.makedirs(name)
+    plt.savefig(name+'/'+'conv.jpg')
+
+# df = pd.read_csv('results/himmelblau_5_42.csv')
+# plot_convergence(df,'himmelblau42')
 
 def vis_ei(x,ei_vals):
     (fig, ax) = plt.subplots(1, 2, figsize=(5, 5))

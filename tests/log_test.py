@@ -15,24 +15,36 @@ from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
 from bo.utils.logged import *
+import datetime, os
 
 # logger = MyLogger("expLog.log").get_logger()
 
-def logdf(data,init_samp,maxbud, name):
+def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     df = pd.DataFrame(np.array(data.history, dtype='object'))
     # df = df.iloc[:,1].apply(lambda x: x[0])
     print(df)
     print('_______________________________')
+    print('yofmins :',yofmins)
     xcoord = pd.DataFrame(df.iloc[:,1].to_list())
     xcoord['y'] = df.iloc[:,2]
-    xcoord.to_csv('results/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+'.csv')
+    xcoord['ysofar'] = [min(xcoord['y'].iloc[:i]) for i in range(1,len(xcoord)+1)] #xcoord['y'].apply(lambda x : min([x - y for y in yofmins]))
+    if rollout:
+        rl='rollout'
+    else:
+        rl = 'n'
+    timestmp = 'results/macreps/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+    if not os.path.exists(timestmp):
+        os.makedirs(timestmp)
+    # tot_samples = xcoord['y'][:10]
+    # tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
+    # reduced_df = pd.DataFrame(tot_samples)
+    xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
+    # plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     print('_______________ Min Observed ________________')
     print(xcoord[np.argmin(xcoord[:,2]), :])
-    return xcoord[np.argmin(xcoord[:,2]), :]
     
-    # plot_1d(xcoord,self.tf,0.25,0.07,0.8,self.init_budget,self.max_budget - self.init_budget)
-    # plot_obj(xcoord,internal_function,[9.42, 2.475],[-5,10],[0,15],init_samp,maxbud - init_samp)
+    return xcoord[np.argmin(xcoord[:,2]), :], timestmp
 
 class Test_internalBO(unittest.TestCase):
     logger = logging.getLogger(__name__)
@@ -85,6 +97,76 @@ class Test_internalBO(unittest.TestCase):
         assert np.array(data.history, dtype=object).shape[0] == maxbud
         assert np.array(data.history, dtype=object).shape[1] == 3
 
+    def rastrigin(self):
+        def internal_function(x, lb=None, ub=None, from_agent = None):
+            # print('x',x.reshape((10,1)))
+            A = 10
+            n = len(x)
+            return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
+            # x = x.reshape((10,1))
+            # d = x.shape
+            # # if lb is None or ub is None:
+            # #     lb = np.full((d,), -2.5)
+            # #     ub = np.full((d,), 3)
+            # # x = from_unit_box(x, lb, ub)
+            # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
+
+        range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
+        region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+
+        # task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+
+        # print('region_support: ',region_support)
+        # region_support = np.array([[-5, 5], [-5, 5]]) 
+
+        seeds = []
+        
+        # sd = int(time.time())
+        # seeds.append(sd)
+        seed = 123 #task_id #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = 5
+        maxbud = 7
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+        name = Test_internalBO.rastrigin.__name__
+        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(seed)+"_"+str(12), y_of_mins, rollout=True)
+        
+        print('seeds :',seeds)
+        sdf = pd.DataFrame(seeds)
+        # sdf.to_csv(timestmp+'/sdf.csv')
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print()
+        print('Plotting')
+        
+        # minobs = data.history[np.argmin(data.history[:,2]), :]
+        # print(np.array(data.history, dtype=object).shape)
+        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
+        assert np.array(data.history, dtype=object).shape[1] == 3
 
     def ackley(self):
         def internal_function(x, lb=None, ub=None, from_agent = None): #ackley
