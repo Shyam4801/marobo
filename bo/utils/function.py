@@ -13,7 +13,7 @@ class Fn:
 
     def __call__(self, *args, **kwargs):
         from_agent = kwargs['from_agent']
-        print(kwargs['from_agent'])
+        # print(kwargs['from_agent'])
         sim_time_start = time.perf_counter()
         rob_val = self.func(*args, **kwargs)
         time_elapsed = time.perf_counter() - sim_time_start

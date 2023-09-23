@@ -50,7 +50,11 @@ def sample_from_discontinuous_region(num_samples, regions, region_support, tf_di
         vol_dic = {}
         for reg in regions:
             # print('inside vol dict ', reg.input_space)
-            vol_dic[reg] = compute_volume(reg.input_space) / total_volume
+            v =  compute_volume(reg.input_space) / total_volume
+            if v != np.inf:
+                vol_dic[reg] = v
+            else:
+                vol_dic[reg] = 1
 
         vol_dic_items = sorted(vol_dic.items(), key=lambda x:x[1])
         # print('vol dict :',vol_dic_items, total_volume)
@@ -59,5 +63,5 @@ def sample_from_discontinuous_region(num_samples, regions, region_support, tf_di
             
             filtered_samples = np.vstack((filtered_samples,tsmp))
 
-        print('filtered_samples: ,', filtered_samples)
+        # print('filtered_samples: ,', filtered_samples)
         return filtered_samples

@@ -15,7 +15,7 @@ from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
 from bo.utils.logged import *
-import datetime, os
+import datetime, os, time
 
 # logger = MyLogger("expLog.log").get_logger()
 
@@ -39,7 +39,7 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     # tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
     # reduced_df = pd.DataFrame(tot_samples)
     xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
-    # plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
+    plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     print('_______________ Min Observed ________________')
     print(xcoord[np.argmin(xcoord[:,2]), :])
@@ -112,26 +112,26 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (80, 1))  # Replicate the range 10 times along axis 0
 
-        # task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
-        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+        y_of_mins = []
 
         # print('region_support: ',region_support)
         # region_support = np.array([[-5, 5], [-5, 5]]) 
 
         seeds = []
         
-        # sd = int(time.time())
+        sd = int(time.time())
         # seeds.append(sd)
-        seed = 123 #task_id #12345
+        seed = task_id #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 7
+        init_samp = 50
+        maxbud = 75
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -146,11 +146,11 @@ class Test_internalBO(unittest.TestCase):
 
         data, rg, plot_res = opt(bo, gpr_model)
         name = Test_internalBO.rastrigin.__name__
-        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(seed)+"_"+str(12), y_of_mins, rollout=True)
+        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
         
         print('seeds :',seeds)
         sdf = pd.DataFrame(seeds)
-        # sdf.to_csv(timestmp+'/sdf.csv')
+        sdf.to_csv(timestmp+'/sdf.csv')
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
         reduction = ((init_vol - final_vol)/init_vol)* 100
@@ -171,24 +171,31 @@ class Test_internalBO(unittest.TestCase):
     def ackley(self):
         def internal_function(x, lb=None, ub=None, from_agent = None): #ackley
             n = len(x)
-            sum_sq_term = -0.2 * np.sqrt((1/n) * np.sum(x**2))
-            cos_term = np.sum(np.cos(2 * np.pi * x))
+            sum_sq_term = -0.2 * np.sqrt((1/n) * np.sum(x**2)/n)
+            cos_term = np.sum(np.cos(2 * np.pi * x))/n
             return -20 * np.exp(sum_sq_term) - np.exp(cos_term) + 20 + np.exp(1)
-
+        
         range_array = np.array([[-4, 5]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (100, 1))
 
-        glob_mins = np.array([[2,2],[0.5,0.5]])
-        y_of_mins = np.array([internal_function(i) for i in glob_mins])
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
 
-        seed = 12345
-        # region_support = np.array([[-1, 1],[-2, 2]])
+        # print('region_support: ',region_support)
+        # region_support = np.array([[-5, 5], [-5, 5]]) 
+
+        seeds = []
+        
+        sd = int(time.time())
+        # seeds.append(sd)
+        seed = task_id #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 6
+        init_samp = 50
+        maxbud = 200
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -197,13 +204,17 @@ class Test_internalBO(unittest.TestCase):
             seed=seed,
             num_agents= 4,
             behavior=Behavior.MINIMIZATION,
-            init_sampling_type="lhs_sampling"
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
         )
 
         data, rg, plot_res = opt(bo, gpr_model)
-        name = Test_internalBO.himmelblau.__name__
-        minobs = logdf(data,init_samp,maxbud, name)
+        name = Test_internalBO.ackley.__name__
+        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
         
+        print('seeds :',seeds)
+        sdf = pd.DataFrame(seeds)
+        sdf.to_csv(timestmp+'/sdf.csv')
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
         reduction = ((init_vol - final_vol)/init_vol)* 100
@@ -216,9 +227,9 @@ class Test_internalBO(unittest.TestCase):
         print('Plotting')
         
         # minobs = data.history[np.argmin(data.history[:,2]), :]
-        
-        contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        assert np.array(data.history, dtype=object).shape[0] == maxbud
+        # print(np.array(data.history, dtype=object).shape)
+        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
         assert np.array(data.history, dtype=object).shape[1] == 3
         
     def mod_branin(self):

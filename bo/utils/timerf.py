@@ -9,7 +9,7 @@ def logtime(path_to_logfile):
             t1 = time()
             result = func(*args, **kwargs)
             t2 = time()
-            with open(path_to_logfile, 'a') as f:
+            with open(path_to_logfile, 'w') as f:
                 f.write(f'Function {func.__name__!r} executed in {(t2-t1):.4f}s'+ "\n")
             return result
         return wrap_func

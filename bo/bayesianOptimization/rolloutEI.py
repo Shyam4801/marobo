@@ -25,6 +25,11 @@ from ..agent.agent import Agent
 from ..utils.volume import compute_volume
 from ..utils.timerf import logtime, LOGPATH
 import yaml
+from joblib import Parallel, delayed
+
+
+def unwrap_self(arg, **kwarg):
+    return RolloutEI.get_pt_reward(*arg, **kwarg)
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
@@ -62,7 +67,7 @@ class RolloutEI(InternalBO):
         # print([i.input_space for i in q])
         return q
 
-    @logtime(LOGPATH)
+    # @logtime(LOGPATH)
     def sample(
         self,
         root,
@@ -114,9 +119,9 @@ class RolloutEI(InternalBO):
 
 
         lf = self.root.find_leaves()
-        print('______________below find leaves_______________________')
-        print_tree(self.root)
-        print('_____________________________________')
+        # print('______________below find leaves_______________________')
+        # print_tree(self.root)
+        # print('_____________________________________')
         assignments = {}
         agents_to_subregion = []
         internal_inactive_subregion=[]
@@ -127,26 +132,26 @@ class RolloutEI(InternalBO):
             elif l.status == 0:
                 internal_inactive_subregion.append(l)
         
-        print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
-        print('lf size: ', len(lf))
+        # print('assignments: ',[{str(k.input_space) : v} for k,v in assignments.items()])
+        # print('lf size: ', len(lf))
         
         xtr = deepcopy(x_train)
         ytr = deepcopy(y_train)
         agents = [Agent(gpr_model, xtr, ytr, agents_to_subregion[a].input_space) for a in range(num_agents)]
-        print('agents_to_subregion : ',agents_to_subregion)
+        # print('agents_to_subregion : ',agents_to_subregion)
         for i,sub in enumerate(agents_to_subregion):
             sub.update_agent(agents[i])
         
 
         # internal_inactive_subregion_not_node = [i.input_space for i in internal_inactive_subregion]
-        print('internal inactive: ', internal_inactive_subregion)
+        # print('internal inactive: ', internal_inactive_subregion)
         # if internal_inactive_subregion != []:
         #     self.inactive_subregion = (internal_inactive_subregion_not_node)
         
         print('_______________________________ AGENTS AT WORK ___________________________________')  
 
         self.internal_inactive_subregion = internal_inactive_subregion
-        print('self.internal_inactive_subregion: ',self.internal_inactive_subregion)
+        # print('self.internal_inactive_subregion: ',self.internal_inactive_subregion)
         self.agent = agents
         self.assignments = assignments
         self.agents_to_subregion = agents_to_subregion
@@ -168,21 +173,21 @@ class RolloutEI(InternalBO):
             # exit()
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,self.tf_dim))
             if np.size(self.internal_inactive_subregion) != 0:
-                print('self.internal_inactive_subregion inside sampling: ',[i.input_space for i in self.internal_inactive_subregion])
+                # print('self.internal_inactive_subregion inside sampling: ',[i.input_space for i in self.internal_inactive_subregion])
                 smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], self.internal_inactive_subregion, region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 subx = np.vstack((subx, smp))
             # print('inside for loop subx ', subx)
             suby = -1 * self.get_exp_values(subx)
-            print('############################################################################')
-            print()
-            print('suby: rollout for 2 horizons with 6 sampled points  :',suby, ' subx:', subx)
-            print()
-            print('############################################################################')
+            # print('############################################################################')
+            # print()
+            # print('suby: rollout for 2 horizons with 6 sampled points  :',suby, ' subx:', subx)
+            # print()
+            # print('############################################################################')
             minidx = np.argmin(suby)
             self.internal_inactive_subregion = self.reassign(self.root,self.internal_inactive_subregion, gpr_model,  na, minidx, subx)
             # self.internal_inactive_subregion.extend(internal_inactive_subregion)
         print('########################### End of MA #################################################')
-        print('final subx : ',subx)
+        # print('final subx : ',subx)
         print('############################################################################')
         for i, preds in enumerate(subx[:num_agents]):
                 self.agent[i].point_history.append(preds)
@@ -197,39 +202,35 @@ class RolloutEI(InternalBO):
         exp_val = np.zeros(num_pts)
         # for i in range(num_pts):
         # print()
-        exp_val = self.get_pt_reward(eval_pts)
+        exp_val = self._evaluate_at_point_list(eval_pts)
         return exp_val
     
-    # def _evaluate_at_point_list(self, point_to_evaluate):
-    #     self.point_current = point_to_evaluate
-    #     if self.numthreads > 1:
-    #         serial_mc_iters = [int(int(self.numthreads)/self.numthreads)] * self.numthreads
-    #         print('serial_mc_iters',serial_mc_iters, self.numthreads)
-    #         pool = Pool(processes=self.numthreads)
-    #         rewards = pool.map(self.get_pt_reward, serial_mc_iters)
-    #         pool.close()
-    #         pool.join()
-    #     else:
-    #         rewards = self.get_pt_reward()
-    #     rewards = np.hstack((rewards))
-    #     # print('rewards: ', rewards)
-    #     return np.sum(rewards)/self.numthreads
+    def _evaluate_at_point_list(self, point_to_evaluate):
+        results = []
+        self.point_current = point_to_evaluate
+        serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
+        print('serial_mc_iters using job lib',serial_mc_iters)
+        results = Parallel(n_jobs= -1, backend="loky")\
+            (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
+        # print('_evaluate_at_point_list results',results)
+        rewards = np.hstack((results))
+        return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
     # @logtime(LOGPATH)
     # @numba.jit(nopython=True, parallel=True)
-    def get_pt_reward(self,point_current):
+    def get_pt_reward(self,iters):
         reward = []
-        for i in range(self.mc_iters):
-            rw = self.get_h_step_all(point_current)
+        for i in range(iters):
+            rw = self.get_h_step_all(self.point_current)
             reward.append(rw)
-            print('reward after each MC iter: ', reward)
-            print(f'########################### Next MC iter {i} #################################################')
+            # print('reward after each MC iter: ', reward)
+            # print(f'########################### Next MC iter {i} #################################################')
         reward = np.array(reward, dtype='object')
-        print('end of MC iter: ',reward)
+        # print('end of MC iter: ',reward)
         return np.mean(reward, axis=0)
     
-    @logtime(LOGPATH)
+    # @logtime(LOGPATH)
     def get_h_step_all(self,current_point):
         reward = 0
         # Temporary Gaussian prior 
@@ -237,7 +238,7 @@ class RolloutEI(InternalBO):
         xtr = copy.deepcopy(self.x_train)  
         # xtr = np.asarray([i.tolist() for i in xtr])
         # print('xtr: ', xtr.shape)
-        print('current pt : ',current_point)
+        # print('current pt : ',current_point)
         # xtr = [i.tolist() for i in xtr]
         ytr = copy.deepcopy(self.y_train)
         h = self.horizon
@@ -281,16 +282,16 @@ class RolloutEI(InternalBO):
         return np.sum(reward,axis=0)
     
     
-    @logtime(LOGPATH)
+    # @logtime(LOGPATH)
     def reassign(self, X_root,internal_inactive_subregion, tmp_gpr, h, minidx, subx):
-        print('curent agent idx ', h)
+        # print('curent agent idx ', h)
         
         self.assignments[self.agents_to_subregion[h]] -= 1
         if minidx >= len(self.agents_to_subregion):
             # print('minidx : ',minidx, self.internal_inactive_subregion)
             inactive_reg_idx = self.check_inactive(subx[minidx], internal_inactive_subregion)
             self.assignments.update({internal_inactive_subregion[inactive_reg_idx] : 1})
-            print('agent moved to this inactive region : ', internal_inactive_subregion[inactive_reg_idx].input_space)
+            # print('agent moved to this inactive region : ', internal_inactive_subregion[inactive_reg_idx].input_space)
             internal_inactive_subregion[inactive_reg_idx].status = 1
         else:
             self.assignments[self.agents_to_subregion[minidx]] += 1
@@ -307,9 +308,9 @@ class RolloutEI(InternalBO):
                 i.add_child(ch)
 
         lf = X_root.find_leaves()
-        print('______________MA step below find leaves_______________________')
+        # print('______________MA step below find leaves_______________________')
         print_tree(X_root)
-        print('_____________________________________')
+        # print('_____________________________________')
         self.assignments = {}
         self.agents_to_subregion = []
         internal_inactive_subregion=[]
@@ -325,11 +326,11 @@ class RolloutEI(InternalBO):
         # self.inactive_subregion = []
         # print('after agents_to_subregion', self.inactive_subregion)
         
-        print('assignments: ',[{str(k.input_space) : v} for k,v in self.assignments.items()])
-        print('lf size: ', len(lf))
+        # print('assignments: ',[{str(k.input_space) : v} for k,v in self.assignments.items()])
+        # print('lf size: ', len(lf))
         
         self.agent = [Agent(tmp_gpr, self.x_train, self.y_train, self.agents_to_subregion[a].input_space) for a in range(len(self.agent))]
-        print('agents_to_subregion : ',self.agents_to_subregion)
+        # print('agents_to_subregion : ',self.agents_to_subregion)
         for i,sub in enumerate(self.agents_to_subregion):
             sub.update_agent(self.agent[i])
         return internal_inactive_subregion

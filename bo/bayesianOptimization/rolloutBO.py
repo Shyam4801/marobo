@@ -55,7 +55,7 @@ class RolloutBO(BO_Interface):
         # print([i.input_space for i in q])
         return q
     
-    @logtime(LOGPATH)
+    # @logtime(LOGPATH)
     def sample(
         self,
         test_function: Callable,
@@ -114,9 +114,9 @@ class RolloutBO(BO_Interface):
         
         for sample in tqdm(range(num_samples)):
             print('_____________________________________', sample)
-            print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
+            # print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
             print('_____________________________________')
-            print('global dataset : ', x_train, y_train)
+            print('global dataset : ', x_train.shape, y_train.shape)
             print('_____________________________________')
             model = GPR(gpr_model)
             model.fit(x_train, y_train)
@@ -160,18 +160,18 @@ class RolloutBO(BO_Interface):
             
             x_train = np.vstack((x_train, pred_sample_x))
             y_train = np.hstack((y_train, (pred_sample_y)))
-            print('pred x,y appended: ', x_train, y_train)
+            # print('pred x,y appended: ', x_train, y_train)
 
         self.assignments.append(assignments)
         self.agent_point_hist.extend([i.point_history[-1] for i in agents])
-        print('_______________________________ TREE _______________________________')
-        print_tree(X_root)
-        print('____________________________________________________________________')
-        print('_______________________________')
+        # print('_______________________________ TREE _______________________________')
+        # print_tree(X_root)
+        # print('____________________________________________________________________')
+        # print('_______________________________')
         # print("Aggregate action: ", final_predx)
-        print('_______________________________')
-        print('Active partitions: ', [{str(k.input_space) : v} for k,v in assignments.items()])
-        print('_______________________________')
+        # print('_______________________________')
+        # print('Active partitions: ', [{str(k.input_space) : v} for k,v in assignments.items()])
+        # print('_______________________________')
         # print("End of BO iter: ", test_function.agent_point_history)
         plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
             # X_root.add_child(self.region_support)
