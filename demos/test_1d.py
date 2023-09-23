@@ -1,7 +1,7 @@
 import numpy as np
 from bo import Behavior, PerformBO
 from bo.bayesianOptimization import InternalBO
-from bo.bayesianOptimization.marlBO import RolloutBO
+from bo.bayesianOptimization.rolloutBO import RolloutBO
 from bo.gprInterface import InternalGPR
 from bo.interface import BOResult
 import time
@@ -49,7 +49,7 @@ def internal_function(x, lb=None, ub=None, from_agent = None):
     return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
 
 range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-init_reg_sup = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+init_reg_sup = np.tile(range_array, (2, 1))  # Replicate the range 10 times along axis 0
 
 
 task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))

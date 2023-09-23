@@ -27,7 +27,11 @@ class RolloutBO(BO_Interface):
         pass
     
     def split_region(self,root,dim,num_agents):
-        region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
+        if num_agents % 2 == 0:
+            splits = num_agents+1
+        else:
+            splits = num_agents #+ 1
+        region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = splits)
         final = []
 
         for i in range(len(region)-1):
@@ -47,12 +51,12 @@ class RolloutBO(BO_Interface):
             if len(q) % 2 == 0:
                 dim = (dim+1)% len(root.input_space)
             curr = q.pop(0)
-            # print('dim curr queue_size', dim, curr.input_space, len(q))
+            print('dim curr queue_size', dim, curr.input_space, len(q))
             ch = self.split_region(curr,dim, dic[dim])
             # print('ch',ch)
             curr.add_child(ch)
             q.extend(ch)
-        # print([i.input_space for i in q])
+        print([i.input_space for i in q])
         return q
     
     @logtime(LOGPATH)
@@ -107,6 +111,7 @@ class RolloutBO(BO_Interface):
         # agents_to_subregion = self.split_space(X_root.input_space,num_agents, tf_dim)
         # print('b4 agents_to_subregion')
         factorized = sorted(find_close_factor_pairs(num_agents), reverse=True)
+        print('factorized among agents',factorized)
         agents_to_subregion = self.get_subregion(deepcopy(X_root), num_agents, factorized, dim=0)
         X_root.add_child(agents_to_subregion)
         assignments = {value: 1 for value in agents_to_subregion} 

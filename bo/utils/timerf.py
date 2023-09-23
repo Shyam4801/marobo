@@ -21,5 +21,20 @@ def logtime(path_to_logfile):
 #     for i in range(n):
 #         pass
 
+# def process_data(item):
+#     # Your processing logic here
+#     result = item * 2
+#     return result
 
-# testiter(10)
+
+# # testiter(10)
+# from parallelize import MyClass
+
+# data_list = [1, 2, 3, 4, 5]
+# num_processes = 2  # Adjust this as needed
+
+# arr = MyClass(process_data)
+# # Call the parallel_process method without creating an instance
+# processed_data = arr.parallel_process(data_list, num_processes)
+
+# print(processed_data)

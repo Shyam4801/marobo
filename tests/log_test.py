@@ -112,7 +112,7 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (2, 1))  # Replicate the range 10 times along axis 0
 
         # task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
@@ -138,7 +138,7 @@ class Test_internalBO(unittest.TestCase):
             max_budget=maxbud,
             region_support=region_support,
             seed=seed,
-            num_agents= 4,
+            num_agents= 7,
             behavior=Behavior.MINIMIZATION,
             init_sampling_type="lhs_sampling",
             logger = self.logger
@@ -220,7 +220,79 @@ class Test_internalBO(unittest.TestCase):
         contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
         assert np.array(data.history, dtype=object).shape[0] == maxbud
         assert np.array(data.history, dtype=object).shape[1] == 3
+    
+    def branin(self):
+        def internal_function(x, from_agent = None):
+            a = 1.0
+            b = 5.1 / (4 * np.pi ** 2)
+            c = 5.0 / np.pi
+            r = 6.0
+            s = 10.0
+            t = 1.0 / (8 * np.pi)
+
+            result = 0
+            for i in range(98):  # 100 dimensions, but loop from 0 to 98
+                result += a * (x[i + 1] - b * x[i] ** 2 + c * x[i] - r) ** 2 + s * (1 - t) * np.cos(x[i]) + s
+
+            return result
+
+        range_array = np.array([[-5, 15]])  # Range [-4, 5] as a 1x2 array
+        region_support = np.tile(range_array, (100, 1))  # Replicate the range 10 times along axis 0
+
+        # task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        # y_of_mins = np.array([internal_function(i) for i in glob_mins])
+
+        # print('region_support: ',region_support)
+        # region_support = np.array([[-5, 5], [-5, 5]]) 
+
+        seeds = []
         
+        # sd = int(time.time())
+        # seeds.append(sd)
+        seed = 123#task_id #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = 5
+        maxbud = 7
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+        name = Test_internalBO.rastrigin.__name__
+        # minobs, timestmp = logdf(data,init_samp,maxbud, name+str(seed)+"_"+str(sd), y_of_mins, rollout=True)
+        
+        print('seeds :',seeds)
+        sdf = pd.DataFrame(seeds)
+        # sdf.to_csv(timestmp+'/sdf.csv')
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print()
+        print('Plotting')
+        
+        # minobs = data.history[np.argmin(data.history[:,2]), :]
+        # print(np.array(data.history, dtype=object).shape)
+        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
+        assert np.array(data.history, dtype=object).shape[1] == 3
+
     def mod_branin(self):
         def internal_function(X, agent_samples = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
             x1 = X[0]

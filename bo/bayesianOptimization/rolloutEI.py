@@ -25,16 +25,24 @@ from ..agent.agent import Agent
 from ..utils.volume import compute_volume
 from ..utils.timerf import logtime, LOGPATH
 import yaml
+from joblib import Parallel, delayed
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
   
+def unwrap_self(arg, **kwarg):
+    return RolloutEI.get_pt_reward(*arg, **kwarg)
+
 class RolloutEI(InternalBO):
     def __init__(self) -> None:
         pass
 
     def split_region(self,root,dim,num_agents):
-        region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
+        if num_agents % 2 == 0:
+            splits = num_agents+1
+        else:
+            splits = num_agents #+ 1
+        region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = splits)
         final = []
 
         for i in range(len(region)-1):
@@ -56,7 +64,7 @@ class RolloutEI(InternalBO):
             curr = q.pop(0)
             # print('dim curr queue_size', dim, curr.input_space, len(q))
             ch = self.split_region(curr,dim, dic[dim])
-            # print('ch',ch)
+            print('ch',ch)
             curr.add_child(ch)
             q.extend(ch)
         # print([i.input_space for i in q])
@@ -135,6 +143,7 @@ class RolloutEI(InternalBO):
         agents = [Agent(gpr_model, xtr, ytr, agents_to_subregion[a].input_space) for a in range(num_agents)]
         print('agents_to_subregion : ',agents_to_subregion)
         for i,sub in enumerate(agents_to_subregion):
+            print('i',i, len(agents), len(agents_to_subregion),len(assignments))
             sub.update_agent(agents[i])
         
 
@@ -190,6 +199,7 @@ class RolloutEI(InternalBO):
         return subx[:num_agents], self.assignments, root, self.agent
 
     # Get expected value for each point after rolled out for h steps 
+    @logtime(LOGPATH)
     def get_exp_values(self,eval_pts):
         # print('eval_pts shape: ',eval_pts.shape)
         # eval_pts = eval_pts.reshape((-1,2))
@@ -197,7 +207,7 @@ class RolloutEI(InternalBO):
         exp_val = np.zeros(num_pts)
         # for i in range(num_pts):
         # print()
-        exp_val = self.get_pt_reward(eval_pts)
+        exp_val = self._evaluate_at_point_list(eval_pts)
         return exp_val
     
     # def _evaluate_at_point_list(self, point_to_evaluate):
@@ -214,14 +224,25 @@ class RolloutEI(InternalBO):
     #     rewards = np.hstack((rewards))
     #     # print('rewards: ', rewards)
     #     return np.sum(rewards)/self.numthreads
+    
+    def _evaluate_at_point_list(self, point_to_evaluate):
+        results = []
+        self.point_current = point_to_evaluate
+        serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
+        print('serial_mc_iters',serial_mc_iters)
+        results = Parallel(n_jobs= -1, backend="loky")\
+            (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
+        print('_evaluate_at_point_list results',results)
+        rewards = np.hstack((results))
+        return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
     # @logtime(LOGPATH)
     # @numba.jit(nopython=True, parallel=True)
-    def get_pt_reward(self,point_current):
+    def get_pt_reward(self,iters):
         reward = []
-        for i in range(self.mc_iters):
-            rw = self.get_h_step_all(point_current)
+        for i in range(iters):
+            rw = self.get_h_step_all(self.point_current)
             reward.append(rw)
             print('reward after each MC iter: ', reward)
             print(f'########################### Next MC iter {i} #################################################')
