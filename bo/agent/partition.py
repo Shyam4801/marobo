@@ -47,9 +47,24 @@ class Node:
             self.child.append(i)
     
     def find_leaves(self):
+        if not self:
+            return []
+
         leaves = []
-        self._find_leaves_helper(self, leaves)
+        stack = [self]
+
+        while stack:
+            node = stack.pop()
+            if not node.child:
+                if node != self:
+                    leaves.append(node)
+            stack.extend(node.child)
+
         return leaves
+
+        # leaves = []
+        # self._find_leaves_helper(self, leaves)
+        # return leaves
 
     def _find_leaves_helper(self, node, leaves):
         if not node.child:
