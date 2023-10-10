@@ -7,6 +7,6 @@ def compute_volume(region):
     # print("dimensions: ",dimensions)
     for i in range(dimensions):
         # print('volume: ',volume)
-        volume *= np.float128(region[i][1] - region[i][0])
+        volume *= np.float64(region[i][1] - region[i][0])
     return volume
 

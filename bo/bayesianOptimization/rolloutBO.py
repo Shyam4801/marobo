@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 
 from .bointerface import BO_Interface
-from .rolloutEI import RolloutEI
+from .rolloutEIpart import RolloutEI
 from ..gprInterface import GPR
 from ..sampling import uniform_sampling, lhs_sampling
 from ..utils import compute_robustness
