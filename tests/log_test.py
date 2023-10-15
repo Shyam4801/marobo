@@ -131,7 +131,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 5
-        maxbud = 6
+        maxbud = 10
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
