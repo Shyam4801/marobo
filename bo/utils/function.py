@@ -1,7 +1,9 @@
 import time
 import numpy as np
+from .timerf import logresults,log_periodically
 
 class Fn:
+    
     def __init__(self, func):
         self.func = func
         self.count = 0
@@ -10,7 +12,7 @@ class Fn:
         self.simultation_time = []
         self.agent_point_history = []
 
-
+    @log_periodically(2)
     def __call__(self, *args, **kwargs):
         from_agent = kwargs['from_agent']
         # print(kwargs['from_agent'])

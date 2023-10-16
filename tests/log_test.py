@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 from bo.utils.visualize import *
 from bo.utils.logged import *
 import datetime, os, time
+from bo.utils.timerf import logMeta
 
 # logger = MyLogger("expLog.log").get_logger()
 
@@ -132,6 +133,9 @@ class Test_internalBO(unittest.TestCase):
 
         init_samp = 5
         maxbud = 10
+        name = Test_internalBO.rastrigin.__name__
+        logMeta(name, init_samp, maxbud)
+        
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -145,7 +149,7 @@ class Test_internalBO(unittest.TestCase):
         )
 
         data, rg, plot_res = opt(bo, gpr_model)
-        name = Test_internalBO.rastrigin.__name__
+        
         minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
         
         print('seeds :',seeds)

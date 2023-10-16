@@ -131,12 +131,13 @@ class RolloutEI(InternalBO):
 
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
-        self.get_pt_reward(2, agents)
+        self.agents = agents
+        # self.get_pt_reward(2)
         # return exp_val
     
-    def _evaluate_at_point_list(self, point_to_evaluate):
+    def _evaluate_at_point_list(self, agents):
         results = []
-        self.point_current = point_to_evaluate
+        self.agents = agents
         serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
         print('serial_mc_iters using job lib',serial_mc_iters)
         results = Parallel(n_jobs= -1, backend="loky")\
@@ -148,8 +149,9 @@ class RolloutEI(InternalBO):
     # Perform Monte carlo itegration
     # @logtime(LOGPATH)
     # @numba.jit(nopython=True, parallel=True)
-    def get_pt_reward(self,iters, agents):
+    def get_pt_reward(self,iters):
         reward = []
+        agents = self.agents
         lf = self.root.find_leaves()
         for i in range(iters):
             # rw = 
