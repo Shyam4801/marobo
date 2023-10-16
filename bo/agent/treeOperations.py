@@ -170,3 +170,61 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
 
         
     return agents
+
+
+def find_leaves_and_compute_avg(trees):
+    if not trees:
+        return []
+
+    leaves = []
+    total_leaf_values = [0] * len(trees)
+    total_leaf_counts = [0] * len(trees)
+
+    # Iterate over each tree
+    for tree_index, tree in enumerate(trees):
+        stack = [tree]
+
+        while stack:
+            node = stack.pop()
+            if not node.child:
+                if node != tree:  # Exclude the root node of the tree
+                    total_leaf_values[tree_index] += node.avgReward
+                    total_leaf_counts[tree_index] += 1
+                else:
+                    leaves.append(node)
+            stack.extend(node.child)
+    
+    avg_leaf_values = [total_leaf_values[i] / total_leaf_counts[i] if total_leaf_counts[i] > 0 else 0 for i in range(len(trees))]
+    return leaves, avg_leaf_values
+
+
+
+# n = Node(1,1)
+# n.reward = 1
+# n.add_child([Node(2,1),Node(3,1),Node(4,1)])
+# l = n.find_leaves()
+# for i in l:
+#     i.reward = 1
+#     i.add_child([Node(i.input_space-1,1),Node(i.input_space+1,1)])
+
+# m = Node(9,9)
+# m.reward = 1
+# m.add_child([Node(8,1),Node(7,1),Node(6,1)])
+# k = m.find_leaves()
+# for i in k:
+#     i.reward = 1
+#     i.add_child([Node(i.input_space-1,1),Node(i.input_space+1,1)])
+
+# l = n.find_leaves()
+# k = m.find_leaves()
+# for i in l:
+#     print(i.input_space)
+
+# from treeOperations import print_tree
+
+# print('next')
+# for i in k:
+#     print(i.input_space)
+
+# print_tree(n, MAIN)
+# print_tree(m, MAIN)

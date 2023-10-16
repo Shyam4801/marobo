@@ -134,8 +134,8 @@ class Test_internalBO(unittest.TestCase):
         init_samp = 5
         maxbud = 10
         name = Test_internalBO.rastrigin.__name__
-        logMeta(name, init_samp, maxbud)
-        
+        logMeta(name+"_"+str(task_id), init_samp, maxbud)
+
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,

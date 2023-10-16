@@ -131,8 +131,12 @@ class RolloutEI(InternalBO):
 
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
-        self.agents = agents
+        # self.agents = agents
         # self.get_pt_reward(2)
+        self._evaluate_at_point_list(agents)
+        print("Tree after MC iters get_exp_values: ")
+        print_tree(self.root, MAIN)
+        print_tree(self.root, ROLLOUT)
         # return exp_val
     
     def _evaluate_at_point_list(self, agents):
@@ -143,8 +147,28 @@ class RolloutEI(InternalBO):
         results = Parallel(n_jobs= -1, backend="loky")\
             (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
         # print('_evaluate_at_point_list results',results)
-        rewards = np.hstack((results))
-        return np.sum(rewards)/self.numthreads
+        # for i in results:
+        #     print('MAIN Tree returned after joblib')
+        #     print_tree(i, MAIN)
+        fin = np.zeros((sum(serial_mc_iters)))
+        for lf in results:
+            lvs = lf.find_leaves()
+            # print('leaves reward :', [i.avgReward for i in lvs])
+            tmp = np.array([i.avgReward for i in lvs], dtype='object')
+            tmp = np.hstack(tmp)
+            # print('tmp :',tmp)
+            fin = np.vstack((fin, tmp))
+        fin = fin[1:]
+        # print('fin leaves ', fin)
+        fin = np.mean(fin, axis=0)
+        # print('avg fin',fin)
+        self.root.setAvgRewards(fin.tolist())
+        # lvs, avgval = find_leaves_and_compute_avg(results)
+        # print([i.input_space for i in lvs], avgval)
+        # # for i in range(len(lf)):
+        #     lf[i].avgReward = lf[i].avgReward / iters
+        # rewards = np.hstack((results))
+        # return np.sum(rewards)/self.numthreads
 
     # Perform Monte carlo itegration
     # @logtime(LOGPATH)
@@ -180,6 +204,7 @@ class RolloutEI(InternalBO):
         print(">>>>>>>>>>>>>>>>>>>>>>>> Tree after avg reward update >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print_tree(self.root, MAIN)
         (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        return self.root
            
     
     def get_h_step_with_part(self, agents):

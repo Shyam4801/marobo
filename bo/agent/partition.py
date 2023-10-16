@@ -78,6 +78,17 @@ class Node:
             stack.extend(node.child)
 
         return leaves
+    
+    def setAvgRewards(self, rewards):
+        if not rewards:
+            return
+
+        for i in range(len(self.child)):
+            if not self.child[i].child:
+                # Assign a value to the leaf node
+                self.child[i].avgReward = rewards.pop()
+            else:
+                self.setAvgRewards(self.child[i], rewards)
 
         # leaves = []
         # self._find_leaves_helper(self, leaves)
@@ -118,7 +129,23 @@ for i in l:
     i.reward = 1
     i.add_child([Node(i.input_space-1,1),Node(i.input_space+1,1)])
 
+m = Node(9,9)
+m.reward = 1
+m.add_child([Node(2,1),Node(3,1),Node(4,1)])
+k = m.find_leaves()
+for i in k:
+    i.reward = 1
+    i.add_child([Node(i.input_space-1,1),Node(i.input_space+1,1)])
+
 l = n.find_leaves()
+k = m.find_leaves()
 for i in l:
-    i.reward = 1 
-    # print_tree(i)
+    print(i.input_space)
+
+# from treeOperations import print_tree
+# print_tree(n)
+print('next')
+for i in k:
+    print(i.input_space)
+
+# print_tree(m)

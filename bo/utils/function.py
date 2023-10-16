@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from .timerf import logresults,log_periodically
+from .timerf import log_periodically
 
 class Fn:
     
