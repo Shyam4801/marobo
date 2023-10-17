@@ -100,7 +100,7 @@ class RolloutEI(InternalBO):
 
         print(' initial agents obj: ',agents)
         for currentAgentIdx in range(len(agents)):
-            self.get_exp_values(agents)
+            self.root = self.get_exp_values(agents)
 
             agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
             assert len(agents) == num_agents
@@ -133,11 +133,12 @@ class RolloutEI(InternalBO):
     def get_exp_values(self, agents):
         # self.agents = agents
         # self.get_pt_reward(2)
-        self._evaluate_at_point_list(agents)
+        self.root = self._evaluate_at_point_list(agents)
         print("Tree after MC iters get_exp_values: ")
         print_tree(self.root, MAIN)
         print_tree(self.root, ROLLOUT)
-        # return exp_val
+        exit(0)
+        return self.root
     
     def _evaluate_at_point_list(self, agents):
         results = []
@@ -150,7 +151,8 @@ class RolloutEI(InternalBO):
         # for i in results:
         #     print('MAIN Tree returned after joblib')
         #     print_tree(i, MAIN)
-        fin = np.zeros((sum(serial_mc_iters)))
+        # # len(results[0].find_leaves())
+        fin = np.zeros((1, len(results[0].find_leaves())))
         for lf in results:
             lvs = lf.find_leaves()
             # print('leaves reward :', [i.avgReward for i in lvs])
@@ -159,10 +161,12 @@ class RolloutEI(InternalBO):
             # print('tmp :',tmp)
             fin = np.vstack((fin, tmp))
         fin = fin[1:]
-        # print('fin leaves ', fin)
+        print('fin leaves ', fin)
         fin = np.mean(fin, axis=0)
-        # print('avg fin',fin)
+        print('avg fin',fin)
         self.root.setAvgRewards(fin.tolist())
+
+        return self.root
         # lvs, avgval = find_leaves_and_compute_avg(results)
         # print([i.input_space for i in lvs], avgval)
         # # for i in range(len(lf)):

@@ -40,7 +40,7 @@ def log_periodically(interval):
                 name = metadata #mt.funcName+"_"+str(mt.initSamp)+"_"+str(mt.maxSmp)
                 while not self.stop_logging:
                     variable_length = len(self.point_history)
-                    if variable_length % 5 == 0:
+                    if variable_length % interval == 0:
                         batch = self.point_history
                         # self.variable = self.point_history[5:]
                         write_to_csv(batch, name)

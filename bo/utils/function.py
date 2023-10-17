@@ -12,7 +12,7 @@ class Fn:
         self.simultation_time = []
         self.agent_point_history = []
 
-    @log_periodically(2)
+    @log_periodically(5)
     def __call__(self, *args, **kwargs):
         from_agent = kwargs['from_agent']
         # print(kwargs['from_agent'])
