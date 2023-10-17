@@ -1,6 +1,10 @@
 import time
 import numpy as np
-from .timerf import log_periodically
+from .logger import log_periodically
+import yaml 
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
 
 class Fn:
     
@@ -12,7 +16,7 @@ class Fn:
         self.simultation_time = []
         self.agent_point_history = []
 
-    @log_periodically(5)
+    @log_periodically(configs['log']['interval'])
     def __call__(self, *args, **kwargs):
         from_agent = kwargs['from_agent']
         # print(kwargs['from_agent'])

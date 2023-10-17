@@ -123,7 +123,7 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
     val = minRegval[0]
     # print('agents inside reassign from:'+str(routine), [i.region_support.input_space for i in agents])
     # print('curr agents[self.num_agents-h].region_support: ',agents[currentAgentIdx].region_support.input_space, agents[currentAgentIdx].region_support)
-    print('region with min reward: find_min_leaf ',minReg.input_space, val, minReg)
+    # print('region with min reward: find_min_leaf ',minReg.input_space, val, minReg)
 
     if agents[currentAgentIdx].region_support != minReg:
         if minReg.getStatus(routine) == 1:
@@ -162,7 +162,7 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
         oldLeaves = root.find_leaves()
         for reg in oldLeaves:
             # reg.region_support.setRoutine(routine)
-            print('else loop ', reg.input_space, reg.routine)
+            # print('else loop ', reg.input_space, reg.routine)
             if routine == MAIN:
                 reg.resetStatus()
                 reg.resetReward()

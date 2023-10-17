@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 
 from .bointerface import BO_Interface
-from .rolloutEIpart import RolloutEI
+from .rolloutEI import RolloutEI
 from ..gprInterface import GPR
 from ..sampling import uniform_sampling, lhs_sampling
 from ..utils import compute_robustness
@@ -21,7 +21,7 @@ from ..agent.treeOperations import *
 from ..agent.partition import Node
 from ..agent.agent import Agent
 from ..agent.constants import *
-from ..utils.timerf import logtime, LOGPATH
+from ..utils.logger import logtime, LOGPATH
 
 class RolloutBO(BO_Interface):
     def __init__(self):

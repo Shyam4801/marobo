@@ -5,7 +5,7 @@ import datetime
 import os
 import logging
 import threading
-import csv 
+import csv
 
 LOGPATH = 'results/timerlog.txt'
 LOGRESULTSPATH = 'results/logDir/'

@@ -4,7 +4,7 @@ import numpy as np
 from attr import frozen
 from typing import Callable, Any
 from numpy.typing import NDArray
-from .utils.logged import *
+from .utils.loggScript import *
 
 from .bayesianOptimization import BOSampling
 from .utils import Fn, compute_robustness

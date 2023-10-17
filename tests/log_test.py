@@ -14,11 +14,9 @@ from bo.bayesianOptimization.rolloutBO import RolloutBO
 from bo import Behavior, PerformBO
 from matplotlib import pyplot as plt
 from bo.utils.visualize import *
-from bo.utils.logged import *
+from bo.utils.loggScript import *
 import datetime, os, time
-from bo.utils.timerf import logMeta
-
-# logger = MyLogger("expLog.log").get_logger()
+from bo.utils.logger import logMeta
 
 def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     df = pd.DataFrame(np.array(data.history, dtype='object'))

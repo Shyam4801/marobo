@@ -1,3 +1,5 @@
 sampling:
   mc_iters: 32
   num_inactive: 100
+log:
+  interval: 5
