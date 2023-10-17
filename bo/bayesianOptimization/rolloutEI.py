@@ -231,6 +231,9 @@ class RolloutEI(InternalBO):
             # print_tree(rl_root, MAIN)
             # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             # print('inside while xt : ', [i.input_space for i in xt])
+            totalVolume = 0
+            for reg in xt:
+                totalVolume += reg.getVolume()
             for reg in xt:
                 if reg.rolloutStatus == 1:
                     next_xt = self._opt_acquisition(self.y_train,tmp_gpr,reg.input_space,self.rng)
@@ -240,7 +243,7 @@ class RolloutEI(InternalBO):
                     reg.reward += (-1 * self.reward(f_xt,ytr))
                 
                 else:
-                    smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], self.region_support, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                    smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                     mu, std = self._surrogate(tmp_gpr, smp)
                     for i in range(len(smp)):
                         f_xt = np.random.normal(mu[i],std[i],1)

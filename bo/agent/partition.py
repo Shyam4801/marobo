@@ -2,6 +2,7 @@ import numpy as np
 import random
 from .constants import *
 from copy import deepcopy
+from bo.utils.volume import compute_volume
 
 class Node:
     def __init__(self, input_space, status) -> None:
@@ -14,6 +15,11 @@ class Node:
         self.avgReward = 0
         self.sampleHist = 0
         self.routine = None
+        self.volume = 0
+
+    def getVolume(self):
+        vol = compute_volume(self.input_space)
+        return vol
 
     def setRoutine(self, name):
         self.routine = name

@@ -43,14 +43,14 @@ def uniform_sampling(
     return np.array(samples).T
 
 
-def sample_from_discontinuous_region(num_samples, regions, region_support, tf_dim, rng, volume=True ):
+def sample_from_discontinuous_region(num_samples, regions, totalVolume, tf_dim, rng, volume=True ):
         filtered_samples = np.empty((0,tf_dim))
-        # threshold = 0.3
-        total_volume = compute_volume(region_support)
+        threshold = 1
+        # total_volume = compute_volume(region_support)
         vol_dic = {}
         for reg in regions:
             # print('inside vol dict ', reg.input_space)
-            v =  compute_volume(reg.input_space) / total_volume
+            v =  reg.getVolume() / totalVolume
             if v != np.inf:
                 vol_dic[reg] = v
             else:
@@ -59,7 +59,10 @@ def sample_from_discontinuous_region(num_samples, regions, region_support, tf_di
         vol_dic_items = sorted(vol_dic.items(), key=lambda x:x[1])
         # print('vol dict :',vol_dic_items, total_volume)
         for v in vol_dic_items:
-            tsmp = uniform_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
+            if int(num_samples*v[1]) >= threshold:
+                tsmp = uniform_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
+            else:
+                tsmp = uniform_sampling(threshold, v[0].input_space, tf_dim, rng)
             
             filtered_samples = np.vstack((filtered_samples,tsmp))
 
