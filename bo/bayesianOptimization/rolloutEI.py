@@ -29,6 +29,7 @@ from ..utils.logger import logtime, LOGPATH
 import yaml
 from joblib import Parallel, delayed
 from ..agent.constants import ROLLOUT, MAIN
+from ..utils.treeExport import export_tree_image
 
 def unwrap_self(arg, **kwarg):
     return RolloutEI.get_pt_reward(*arg, **kwarg)
@@ -92,7 +93,9 @@ class RolloutEI(InternalBO):
         for l in lf:
             l.setRoutine(MAIN)
             if l.getStatus(MAIN) == 1:
-                agents.append(Agent(gpr_model, xtr, ytr, l))
+                ag = Agent(gpr_model, xtr, ytr, l)
+                ag(MAIN)
+                agents.append(ag)
         
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
 
@@ -103,8 +106,12 @@ class RolloutEI(InternalBO):
         for currentAgentIdx in range(len(agents)):
             self.root = self.get_exp_values(agents)
 
+            print('b4 reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
             agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
+            print('after reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
+            export_tree_image(root, MAIN, f"results/trees/main/mainroot_after_{currentAgentIdx}_reassign.png")
             assert len(agents) == num_agents
+            
         #     print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
         #     print_tree(self.root, MAIN)
         #     # print('Rollout tree in main routine ')
@@ -132,9 +139,9 @@ class RolloutEI(InternalBO):
 
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
-        # self.agents = agents
-        # self.get_pt_reward(2)
-        self.root = self._evaluate_at_point_list(agents)
+        self.agents = agents
+        self.root = self.get_pt_reward(2)
+        # self.root = self._evaluate_at_point_list(agents)
         # print("Tree after MC iters get_exp_values: ")
         # print_tree(self.root, MAIN)
         # print_tree(self.root, ROLLOUT)
@@ -181,10 +188,15 @@ class RolloutEI(InternalBO):
         reward = []
         agents = self.agents
         lf = self.root.find_leaves()
+        for a in agents:
+            a.resetRegions()
+            a(MAIN)
+            assert a.simReg == a.region_support
         for i in range(iters):
             # rw = 
-            # print('agents in mc iter : ', [i.region_support.input_space for i in agents])
+            print('agents in mc iter : ', [i.region_support.input_space for i in agents])
             self.get_h_step_with_part(agents)
+            export_tree_image(self.root, ROLLOUT, f"results/trees/rollout/MCtree_after_{i}_reassign.png")
             assert(len(agents) == self.num_agents)
             
             for sima in lf:
@@ -194,8 +206,14 @@ class RolloutEI(InternalBO):
                 sima.avgReward += sima.reward
                 sima.child = []
                 sima.resetStatus()
+            
+            for a in agents:
+                a.resetRegions()
+                a(MAIN)
+                assert a.simReg == a.region_support
+            
 
-            # print(f'########################### End of MC iter {i} #################################################')
+            print(f'########################### End of MC iter {i} #################################################')
         # reward = np.array(reward, dtype='object')
         # print(">>>>>>>>>>>>>>>>>>>>>>>> Tree just b4 avg reward update >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         # print_tree(self.root, ROLLOUT)
@@ -219,6 +237,7 @@ class RolloutEI(InternalBO):
         h = self.horizon
         rl_root = self.root #copy.deepcopy(self.root)
         xt = rl_root.find_leaves()  #self.subregions
+        # agents = deepcopy(agents)
         # print()
         # print('b4 while agents_to_subregion',[(i.input_space,i.rolloutStatus, i.reward) for i in xt])
         # print()
@@ -254,15 +273,23 @@ class RolloutEI(InternalBO):
                 # print("reward of all leaves : ",reg.input_space, reg.reward)
                     
             # print()
-            # print('Rollout reassignments in the tree directly ')
+            print('Rollout reassignments in the tree directly ')
             # print()
             currentAgentIdx = self.num_agents - h
+            print_tree(rl_root, ROLLOUT)
+            print('b4 reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             agents = reassign(rl_root, ROLLOUT, agents, currentAgentIdx, tmp_gpr, self.x_train, ytr)
-            
+            print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
+            export_tree_image(rl_root, ROLLOUT, f"results/trees/rollout/rlroot_after_{h}_reassign.png")
+            print_tree(rl_root, ROLLOUT)
+            assert len(agents) == self.num_agents
+
             xt = rl_root.find_leaves() 
             h -= 1
             if h <= 0 :
                 break
+
+        # exit(0)
     
     # Reward is the difference between the observed min and the obs from the posterior
     def reward(self,f_xt,ytr):

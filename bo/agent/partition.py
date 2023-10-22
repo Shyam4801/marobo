@@ -10,7 +10,7 @@ class Node:
         self.child = []
         self.mainStatus = status
         self.rolloutStatus = status
-        self.agent = 0
+        self.agent = None
         self.reward = 0
         self.avgReward = 0
         self.sampleHist = 0

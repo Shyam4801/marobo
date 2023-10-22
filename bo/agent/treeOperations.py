@@ -124,24 +124,43 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
     # print('agents inside reassign from:'+str(routine), [i.region_support.input_space for i in agents])
     # print('curr agents[self.num_agents-h].region_support: ',agents[currentAgentIdx].region_support.input_space, agents[currentAgentIdx].region_support)
     # print('region with min reward: find_min_leaf ',minReg.input_space, val, minReg)
+    currAgentRegion = agents[currentAgentIdx].getRegion(routine)
+    print('currentAgentIdx region: ',currAgentRegion.input_space, 'minreg :', minReg.input_space, 'val: ',val)
 
-    if agents[currentAgentIdx].region_support != minReg:
+    # print(root.find_leaves())
+    if currAgentRegion != minReg:  # either moves to act or inact region
+        currAgentRegion.updateStatus(0, routine)
+        agents[currentAgentIdx](routine)
         if minReg.getStatus(routine) == 1:
             internal_factorized = sorted(find_close_factor_pairs(2), reverse=True)
             ch = get_subregion(deepcopy(minReg), 2, internal_factorized)
             minReg.add_child(ch)
             minReg.updateStatus(0, routine)
+
+            agents[currentAgentIdx].updateBounds(ch[1], routine)
+            print('ch[1].getStatus(routine): ',ch[1].input_space ,ch[1].getStatus(routine))
+            agents[currentAgentIdx](routine)
+            print('ch[1].agent.simReg.input_space: ',ch[1].agent.simReg.input_space, ch[1].agent.region_support.input_space)  # ch[1].agent.simReg.input_space = ch[1].input_space should be equal
+            assert ch[1].agent.getRegion(routine) == ch[1]
+            minReg.agent.updateBounds(ch[0], routine)
+            minReg.agent(routine)  # ch[0].input_space == minReg.agent.simReg.input_space should be 
+            assert ch[0] == minReg.agent.getRegion(routine)
             # print('minreg : ', minReg.input_space, minReg.getStatus(routine))
         else:
             minReg.updateStatus(1, routine)
+            agents[currentAgentIdx].updateBounds(minReg, routine)
+            agents[currentAgentIdx](routine)   # minReg.input_space == agents[currentAgentIdx].simReg.input_space)
+            assert minReg == agents[currentAgentIdx].getRegion(routine)
+
         if routine == MAIN:
             minReg.resetStatus()
             minReg.resetReward()
-        agents[currentAgentIdx].region_support.updateStatus(0, routine)
-        # print('agents[currentAgentIdx].region_support.updateStatus(0, routine) ', [i.region_support.input_space for i in agents])
+        
+        # print('agents inside reassign ', [i.getRegion(routine).input_space for i in agents])
         newAgents = []
         newLeaves = root.find_leaves()
-        # print('newleaves ', [{str(i.input_space) : i.getStatus(ROLLOUT)} for i in newLeaves])
+        print(newLeaves)
+        # print('newleaves ', [{str(i.input_space) : (i.agent.simReg, i.getStatus(ROLLOUT))} for i in newLeaves])
         # print_tree(root, ROLLOUT)
         # if routine == MAIN:
         #     print('inside reassign tree')
@@ -149,8 +168,13 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
         #     print_tree(root, ROLLOUT)
         for reg in newLeaves:
             # reg.setRoutine(routine)
+            # if reg.agent != None:
+            #     reg.agent(routine)
             if reg.getStatus(routine) == 1:
-                newAgents.append(Agent(model, xtr, ytr, reg))
+                # reg.agent(routine)
+                print('reg ', str(reg.input_space), reg.agent)
+                print('newleaves ', {str(reg.input_space) : (reg.agent.getRegion(routine).input_space, reg.getStatus(ROLLOUT))})  # regions should be equal
+                newAgents.append(reg.agent)
                 # print('new agents inside for : ', newAgents)
             if routine == MAIN:
                 reg.setRoutine(routine)
