@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 #         self.value = value
 #         self.children = []
 
-def render_tree(node, routine,  x, y, ax, x_spacing=5.0, y_spacing=5.0):
+def render_tree(node, routine,  x, y, ax, x_spacing=10.0, y_spacing=10.0):
     if node is not None:
-        if node.agent is not None:
-            reg = "Actual"+str(node.input_space) + "\nSimReg"+str(node.agent.simReg.input_space)+'\n Main region'+str(node.agent.region_support.input_space)
+        if node.agent is not None: # or node.agent.x_train is not None or node.y_train is not None:
+            reg = "Actual"+str(node.input_space) + "\nSimReg"+str(node.agent.simReg.input_space)+'\n Main region'+str(node.agent.region_support.input_space)+'\n dataset:'+ str(node.agent.x_train) + str(node.agent.y_train)
         else:
             reg = 'NA'
         if node.getStatus(routine) == 1:
@@ -25,8 +25,8 @@ def render_tree(node, routine,  x, y, ax, x_spacing=5.0, y_spacing=5.0):
                 child_x += x_spacing
 
 def export_tree_image(root,routine, filename):
-    fig, ax = plt.subplots(figsize=(8, 6))
-    render_tree(root,routine, 0, 0, ax, x_spacing=5.0, y_spacing=5.0)
+    fig, ax = plt.subplots(figsize=(15, 15))
+    render_tree(root,routine, 0, 0, ax, x_spacing=10.0, y_spacing=10.0)
     ax.set_aspect('equal')
     ax.axis('off')
     plt.savefig(filename, format="png")

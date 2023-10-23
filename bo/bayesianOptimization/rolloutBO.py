@@ -89,11 +89,18 @@ class RolloutBO(BO_Interface):
             model.fit(x_train, y_train)
             self.ei_roll = RolloutEI()
                 
-            pred_sample_x, X_root = self.ei_roll.sample(X_root, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
+            pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
             
             x_train = np.vstack((x_train, pred_sample_x))
             y_train = np.hstack((y_train, (pred_sample_y)))
+            print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
+            for i,a in enumerate(agents):
+                print(f'b4 appendign agent {i} xtrain :', a.x_train)
+                a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
+                print(f'agent {i} xtrain :', a.x_train)
+                a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
+                a.updateModel()
         plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
             # X_root.add_child(self.region_support)
         return falsified, self.region_support, plot_dict

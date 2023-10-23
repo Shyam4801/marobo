@@ -1,6 +1,7 @@
 
 from typing import Any
 from .constants import MAIN
+from ..gprInterface import GPR, InternalGPR
 
 class Agent():
     def __init__(self, model, x_train, y_train, region_support) -> None:
@@ -21,7 +22,11 @@ class Agent():
             print('active region gets assigned the agent using self')
         else:
             region.agent = None 
-            
+
+    def updateModel(self):
+        self.model = GPR(InternalGPR())
+        self.model.fit(self.x_train, self.y_train)
+
     def resetRegions(self):
         self.simReg = self.region_support
 

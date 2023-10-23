@@ -30,6 +30,7 @@ import yaml
 from joblib import Parallel, delayed
 from ..agent.constants import ROLLOUT, MAIN
 from ..utils.treeExport import export_tree_image
+from ..utils.plotlyExport import exportTreeUsingPlotly
 
 def unwrap_self(arg, **kwarg):
     return RolloutEI.get_pt_reward(*arg, **kwarg)
@@ -110,6 +111,7 @@ class RolloutEI(InternalBO):
             agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
             print('after reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
             export_tree_image(root, MAIN, f"results/trees/main/mainroot_after_{currentAgentIdx}_reassign.png")
+            exportTreeUsingPlotly(root)
             assert len(agents) == num_agents
             
         #     print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
@@ -127,15 +129,17 @@ class RolloutEI(InternalBO):
         # print('final agent regions ', [i.region_support.input_space for i in agents])
         for i,a in enumerate(agents):
             # smp = uniform_sampling(5, a.region_support, tf_dim, rng)
-            x_opt = self._opt_acquisition(y_train, gpr_model, a.region_support.input_space, rng) 
+            x_opt = self._opt_acquisition(y_train, a.model, a.region_support.input_space, rng) 
             # smp = np.vstack((smp, x_opt))
             x_opt_from_all.append(x_opt)
+            # a.xtr = np.vstack((a.xtr, pred_sample_x))
+            # a.ytr = np.hstack((a.ytr, (pred_sample_y)))
         subx = np.hstack((x_opt_from_all)).reshape((num_agents,self.tf_dim))
 
         for i, preds in enumerate(subx[:num_agents]):
                 agents[i].point_history.append(preds)
         assert subx.shape[0] == num_agents
-        return subx[:num_agents], root #, self.assignments, self.agent
+        return subx[:num_agents], root, agents #, self.assignments, self.agent
 
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
