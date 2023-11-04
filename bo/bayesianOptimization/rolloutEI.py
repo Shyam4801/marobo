@@ -46,6 +46,7 @@ class RolloutEI(InternalBO):
     def sample(
         self,
         root,
+        agents,
         num_agents,
         test_function: Callable,
         x_train,
@@ -89,14 +90,14 @@ class RolloutEI(InternalBO):
         lf = self.root.find_leaves()
         xtr = deepcopy(x_train)
         ytr = deepcopy(y_train)
-        agents = []
+        agents = agents
 
-        for l in lf:
-            l.setRoutine(MAIN)
-            if l.getStatus(MAIN) == 1:
-                ag = Agent(gpr_model, xtr, ytr, l)
-                ag(MAIN)
-                agents.append(ag)
+        # for l in lf:
+        #     l.setRoutine(MAIN)
+        #     if l.getStatus(MAIN) == 1:
+        #         ag = Agent(gpr_model, xtr, ytr, l)
+        #         ag(MAIN)
+        #         agents.append(ag)
         
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
 
@@ -259,7 +260,7 @@ class RolloutEI(InternalBO):
                 totalVolume += reg.getVolume()
             for reg in xt:
                 if reg.rolloutStatus == 1:
-                    next_xt = self._opt_acquisition(self.y_train,tmp_gpr,reg.input_space,self.rng)
+                    next_xt = self._opt_acquisition(self.y_train,tmp_gpr,reg.input_space,self.rng)  # reg.agent.model
                     next_xt = np.asarray([next_xt])
                     mu, std = self._surrogate(tmp_gpr, next_xt)
                     f_xt = np.random.normal(mu,std,1)

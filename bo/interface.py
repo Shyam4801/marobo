@@ -90,6 +90,7 @@ class PerformBO:
 
         if not falsified:
             print("No falsification in Initial Samples. Performing BO now")
-            falsified, rg, plot_res = bo_routine.sample(self.tf_wrapper, self.max_budget - self.init_budget, x_train, y_train, self.region_support, gpr_model, self.rng, self.num_agents)
+            falsified, rg, plot_res = bo_routine.sample(self.tf_wrapper, self.max_budget - self.init_budget, x_train, y_train, self.region_support, gpr_model, 
+                                                        self.rng, self.num_agents) #, self.init_sampling_type, self.init_budget)
 
         return BOResult(self.tf_wrapper.point_history, self.tf_wrapper.agent_point_history,time.perf_counter()-start_time), rg, plot_res
