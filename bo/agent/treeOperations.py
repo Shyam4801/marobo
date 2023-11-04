@@ -5,6 +5,7 @@ import numpy as np
 from .partition import Node
 
 def split_region(root,dim,num_agents):
+    # print('split_region: dim',dim, num_agents)
     region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
     final = []
 
@@ -19,19 +20,55 @@ def split_region(root,dim,num_agents):
     regs = [Node(i, 1) for i in regs]
     return regs
     
-def get_subregion(root, num_agents,dic, dim=0):
-    q=[root]
-    while(len(q) < num_agents):
-        if len(q) % 2 == 0:
-            dim = (dim+1)% len(root.input_space)
+# def get_subregion(root, num_agents,dic, dim=0):
+#     q=[root]
+#     while(len(q) < num_agents):
+#         if len(q) % 2 == 0:
+#             dim = (dim+1)% len(root.input_space)
+#             print('inside: ',dim)
+#         curr = q.pop(0)
+#         # print('dim curr queue_size', dim, curr.input_space, len(q))
+#         print('dim : ',dim, 'curr ', curr.input_space, 'q: ', [i.input_space for i in q])
+#         ch = split_region(curr,dim, dic[dim])
+#         # print('ch',ch)
+#         curr.add_child(ch)
+#         q.extend(ch)
+#     # print([i.input_space for i in q])
+#     return q
+
+def get_subregion(root, num_agents, dic, dim):
+    q = [root]
+    while len(q) < num_agents:
+        cuts = dim % len(dic) 
+        if len(q) % dic[cuts] == 0:
+            dim = np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) # #
         curr = q.pop(0)
-        # print('dim curr queue_size', dim, curr.input_space, len(q))
-        ch = split_region(curr,dim, dic[dim])
-        # print('ch',ch)
+        
+        # print('dim :', dim,'q: ', [i.input_space for i in q])
+        ch = split_region(curr, dim, dic[cuts])
         curr.add_child(ch)
         q.extend(ch)
-    # print([i.input_space for i in q])
+        # if len(q) % dic[cuts] == 0:
+        #     dim = (dim + 1) % len(root.input_space)
     return q
+
+# def get_subregion(root, num_agents, dic, dim=0):
+#     q = [root]
+#     while len(q) < num_agents:
+#         if len(q) % 2 == 0:
+#             dim = (dim + 1) % len(root.input_space)
+#         curr = q.pop(0)
+        
+#         cuts = (dim + 1) % len(dic)
+#         print('dim : ',dim,'cuts :',cuts, 'curr ', curr.input_space, 'q: ', [i.input_space for i in q])
+#         ch = split_region(curr, dim, dic[cuts])
+#         curr.add_child(ch)
+#         q.extend(ch)
+#         print('ch : ',ch[0].input_space)
+#         print('len(root.input_space): ',len(root.input_space))
+        
+
+#     return q
 
 def print_tree(node, routine, level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
@@ -51,22 +88,35 @@ def print_tree(node, routine, level=0, prefix=''):
     
     print('    ' * level + prefix + f'-- {color}{node.input_space.flatten()}{reward}{END}')
 
-def find_close_factor_pairs(number):
-    factors = np.arange(1, int(np.sqrt(number)) + 1)
-    valid_indices = np.where(number % factors == 0)[0]
-    factors = factors[valid_indices]
+# def find_close_factor_pairs(number):
+#     factors = np.arange(1, int(np.sqrt(number)) + 1)
+#     valid_indices = np.where(number % factors == 0)[0]
+#     factors = factors[valid_indices]
 
-    factor_pairs = [(factors[i], number // factors[i]) for i in range(len(factors))]
-    min_gap = np.inf
-    final_pair = 0
-    for f1,f2 in  factor_pairs:
-        if min_gap > abs(f1 - f2):
-            min_gap = abs((f1 - f2))
-            close_pairs = (f1,f2)
+#     factor_pairs = [(factors[i], number // factors[i]) for i in range(len(factors))]
+#     min_gap = np.inf
+#     final_pair = 0
+#     for f1,f2 in  factor_pairs:
+#         if min_gap > abs(f1 - f2):
+#             min_gap = abs((f1 - f2))
+#             close_pairs = (f1,f2)
 
-    # close_pairs = [(f1, f2) for f1, f2 in factor_pairs if abs(f1 - f2) <= 5]
+#     # close_pairs = [(f1, f2) for f1, f2 in factor_pairs if abs(f1 - f2) <= 5]
 
-    return close_pairs
+#     return close_pairs
+
+def find_prime_factors(number):
+    prime_factors = []
+    candidate = 2
+
+    while candidate <= number:
+        if number % candidate == 0:
+            prime_factors.append(candidate)
+            number /= candidate
+        else:
+            candidate += 1
+
+    return prime_factors
 
 def accumulate_rewards_and_update(node):
     # Base case: If the node is a leaf, return its reward
@@ -132,8 +182,8 @@ def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
         currAgentRegion.updateStatus(0, routine)
         agents[currentAgentIdx](routine)
         if minReg.getStatus(routine) == 1:
-            internal_factorized = sorted(find_close_factor_pairs(2), reverse=True)
-            ch = get_subregion(deepcopy(minReg), 2, internal_factorized)
+            internal_factorized = find_prime_factors(2) #sorted(find_close_factor_pairs(2), reverse=True)
+            ch = get_subregion(deepcopy(minReg), 2, internal_factorized, np.random.randint(len(minReg.input_space)))
             minReg.add_child(ch)
             minReg.updateStatus(0, routine)
 
@@ -252,3 +302,22 @@ def find_leaves_and_compute_avg(trees):
 
 # print_tree(n, MAIN)
 # print_tree(m, MAIN)
+
+# reg = np.array([[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]])
+# n = Node(reg,1)
+# a = 6
+# factorized = find_prime_factors(a) #sorted(find_close_factor_pairs(a), reverse=True)
+# print(factorized, 'np.random.randint(len(reg)): ',np.random.randint(len(reg)))
+# ch = get_subregion(deepcopy(n), a,factorized, np.random.randint(len(reg)))
+# print(len(ch))
+# n.add_child(ch)
+
+# print('[i.getVolume() for i in ch]: ',[{str(i.input_space ): i.getVolume()} for i in ch])
+
+# v=0
+# for i in ch:
+#     v += i.getVolume()
+
+# assert n.getVolume() == v
+# print('set([i.getVolume() for i in ch]) :', set([i.getVolume() for i in ch]))
+# print_tree(n, MAIN)

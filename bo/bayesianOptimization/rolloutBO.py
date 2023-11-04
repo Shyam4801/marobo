@@ -76,10 +76,16 @@ class RolloutBO(BO_Interface):
 
         tf_dim = region_support.shape[0]
         X_root = Node(self.region_support, 1)
-        factorized = sorted(find_close_factor_pairs(num_agents), reverse=True)
-        agents_to_subregion = get_subregion(deepcopy(X_root), num_agents, factorized, dim=0)
+        factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
+        agents_to_subregion = get_subregion(deepcopy(X_root), num_agents, factorized, np.random.randint(tf_dim))
         X_root.add_child(agents_to_subregion)
         # assignments = {value: 1 for value in agents_to_subregion} 
+        testv=0
+        for i in agents_to_subregion:
+            testv += i.getVolume()
+
+        assert X_root.getVolume() == testv
+        print('set([i.getVolume() for i in agents_to_subregion]) :', set([i.getVolume() for i in agents_to_subregion]))
         
         agents = []
         globalXtrain = np.empty((1,tf_dim))
@@ -100,6 +106,8 @@ class RolloutBO(BO_Interface):
                 ag(MAIN)
                 agents.append(ag)
         
+        globalXtrain = globalXtrain[1:]
+        globalYtrain = globalYtrain[1:]
         # print('globalXtrain, globalYtrain :', globalXtrain, globalYtrain)
         for sample in tqdm(range(num_samples)):
             print('_____________________________________', sample)
@@ -108,7 +116,7 @@ class RolloutBO(BO_Interface):
             print('global dataset : ', x_train.shape, y_train.shape)
             print('_____________________________________')
             model = GPR(gpr_model)
-            model.fit(globalXtrain[1:], globalYtrain[1:])
+            model.fit(globalXtrain, globalYtrain)
             self.ei_roll = RolloutEI()
                 
             pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, agents, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
