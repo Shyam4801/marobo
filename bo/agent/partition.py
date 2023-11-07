@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 import random
 from .constants import *
@@ -12,10 +13,35 @@ class Node:
         self.rolloutStatus = status
         self.agent = None
         self.reward = 0
+        self.rewardDist = []
+        self.avgRewardDist = np.zeros((1,4))
+        self.numAgents = status
+        self.agentList = []
         self.avgReward = 0
         self.sampleHist = 0
         self.routine = None
         self.volume = 0
+        self.numAgentsTrace = status
+        self.agentListTrace = []
+
+    def __call__(self):
+        if self.agent != None:
+            self.agentList = [self.agent]
+        else:
+            self.agentList = []
+
+
+    def resetTrace(self, routine):
+         self.numAgents = self.getStatus(routine)
+         self.agentList = []
+        # self.numAgentsTrace = self.numAgents
+        # self.agentListTrace = self.agentList
+
+    # def updateRewardDist(self, routine, reward):
+    #     self.rewardDist
+
+    def resetRewardDist(self):
+        self.rewardDist = []
 
     def getVolume(self):
         vol = compute_volume(self.input_space)
@@ -61,8 +87,41 @@ class Node:
 
         # return leaves
 
-    def update_agent(self, agent):
-        self.agent = agent 
+    def addAgentList(self, agent, routine):
+        # if routine == MAIN:
+            self.agentList.append(agent) 
+        # else:
+        #     self.agentListTrace.append(agent)
+    
+    def removeFromAgentList(self, agent, routine):
+        # if routine == MAIN:
+            self.agentList.remove(agent) 
+        # else:
+        #     self.agentListTrace.remove(agent)
+    
+    def increaseNumAgents(self, routine):
+        # if routine == MAIN:
+            self.numAgents += 1
+        # else:
+        #     self.numAgentsTrace += 1
+    
+    def reduceNumAgents(self, routine):
+        # if routine == MAIN:
+            self.numAgents -= 1
+        # else:
+        #     self.numAgentsTrace -= 1
+    
+    def getnumAgents(self, routine):
+        # if routine == MAIN:
+            return self.numAgents
+        # else:
+        #     return self.numAgentsTrace
+    
+    def getAgentList(self, routine):
+        # if routine == MAIN:
+            return self.agentList
+        # else:
+        #     return self.agentListTrace
     
     def add_child(self,c):
         for i in c:

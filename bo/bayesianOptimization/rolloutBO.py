@@ -105,6 +105,7 @@ class RolloutBO(BO_Interface):
                 ag.updateModel()
                 ag(MAIN)
                 agents.append(ag)
+                l.addAgentList(ag, MAIN)
         
         globalXtrain = globalXtrain[1:]
         globalYtrain = globalYtrain[1:]

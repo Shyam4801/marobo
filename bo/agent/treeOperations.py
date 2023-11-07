@@ -136,6 +136,37 @@ def accumulate_rewards_and_update(node):
 
     return accumulated_reward
 
+def accumulate_rewardDist(node, numAgents):
+    # Base case: If the node is a leaf, return its reward
+    if not node.child:
+        return node.rewardDist
+
+    # Initialize the accumulated reward for this node
+    accumulated_reward = node.rewardDist
+
+    # Recursively accumulate rewards from child nodes and update node.value
+    for child in node.child:
+        child_accumulated_reward = accumulate_rewardDist(child, numAgents)
+        print('child_accumulated_reward: ',child_accumulated_reward, child.input_space, accumulated_reward)
+        if child_accumulated_reward == []:
+            child_accumulated_reward = [0]* numAgents
+        child_accumulated_reward = np.hstack((child_accumulated_reward))
+        accumulated_reward = np.hstack((accumulated_reward))
+        # accumulated_reward += child_accumulated_reward
+        print('--------------------------------------')
+        
+        accumulated_reward = np.vstack((accumulated_reward, child_accumulated_reward))
+        accumulated_reward = np.sum(accumulated_reward, axis=0) #[sum(i) for i in zip(accumulated_reward, child_accumulated_reward)]
+        print('accumulated_reward after sum ',accumulated_reward)
+        print('--------------------------------------')
+
+    # Update the node.value with the accumulated reward
+    print('accumulated_reward: ',accumulated_reward, node.input_space)
+    print('--------------------------------------')
+    node.rewardDist = accumulated_reward
+
+    return accumulated_reward
+
 # print(accumulate_rewards_and_update(n))
 # print_tree(n)
 
@@ -158,12 +189,133 @@ def find_min_leaf(node, routine, min_leaf=None):
 
         return min_leaf
 
+def find_leaf_with_min_reward_dist(node, agentIdx, routine, min_leaf=None):
+        if min_leaf is None:
+            min_leaf = [float('inf'), None]
+
+        if routine == MAIN:
+            reward = node.avgRewardDist[agentIdx]
+        else:
+            reward = node.rewardDist[agentIdx]
+
+        if not node.child:  # Check if it's a leaf node
+            if reward < min_leaf[0]:
+                min_leaf[0] = reward
+                min_leaf[1] = node
+
+        for child in node.child:
+            find_min_leaf(child, routine, min_leaf)
+
+        return min_leaf
+
 def dropChildren(node):
     if node.routine == MAIN:
         node.child = []
 
     for child in node.child:
         dropChildren(child)
+
+
+def reassignUsingRewardDist(root, routine, agents):
+    subregs = root.find_leaves() 
+    
+    rewardStack = []
+    for subr in subregs:
+        if routine == MAIN:
+            rewardStack.append(np.hstack((subr.avgRewardDist)))
+        else:
+            rewardStack.append(np.hstack((subr.rewardDist)))
+    
+    print('rewardStack: ',rewardStack)
+    minsubreg = np.asarray(rewardStack, dtype="object")
+    minsubreg = minsubreg.reshape((len(subregs), 4))
+    print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
+    assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
+    minsubregIdx = np.argmin(minsubreg ,axis=0)
+    print('--------------------------------------')
+    print('minsubregIdx: ',minsubregIdx)
+    print('--------------------------------------')
+        
+    for idx, a in enumerate(agents[::-1]):
+        # deactivate curr subreg
+        currSubreg = a.getRegion(routine)
+        print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
+        # print([{i: i.getRegion(MAIN).input_space} for i in currSubreg.getAgentList(MAIN)])
+        print('--------------------------------------')
+        currSubreg.reduceNumAgents(routine)
+        print('currSubreg agentList region: b4 removal ',len(currSubreg.getAgentList(routine)) ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
+        currSubreg.removeFromAgentList(a, routine)
+        print('--------------------------------------')
+        # if currSubreg.numAgents > 
+        # currSubreg.agent
+        # a(routine)
+        # activate new sub reg
+        subregs[minsubregIdx[idx]].updateStatus(1, routine)
+        subregs[minsubregIdx[idx]].increaseNumAgents(routine)
+        subregs[minsubregIdx[idx]].addAgentList(a, routine)
+        print('subregs[minsubregIdx[idx]]: ',subregs[minsubregIdx[idx]].input_space)
+        print('--------------------------------------')
+        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList))
+        assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
+    print('num agents : ',[i.getnumAgents(routine) for i in subregs])
+    print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
+    print('--------------------------------------')
+    # partitionRegions(subregs)
+    return subregs
+        # minsubreg[idx]()
+        # update agents new sub reg 
+        # a.updateBounds(subregs[minsubregIdx[idx]], routine)
+        # a(routine)
+
+def partitionRegions(root, subregions, routine):
+    print('===================================================')
+    print('================= Paritioning =================')
+    for subr in subregions:
+        if subr.getnumAgents(routine) > 1:
+            subr.updateStatus(0, routine)
+            internal_factorized = find_prime_factors(subr.getnumAgents(routine))
+            ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, np.random.randint(len(subr.input_space)))
+            subr.add_child(ch)
+            assert len(ch) == subr.getnumAgents(routine)
+
+            # assign the agents to the new childs 
+            for idx, agent in enumerate(subr.agentList):
+                agent.updateBounds(ch[idx], routine)
+                #assign self
+                agent(routine)
+                agent.getRegion(routine).addAgentList(agent, routine)
+                # print('agent.getRegion(routine): ',agent.getRegion(routine))
+                # print('--------------------------------------')
+
+        elif subr.getnumAgents(routine) == 0:
+            subr.updateStatus(0, routine)
+            # subr.agent(routine)
+            assert len(subr.getAgentList(routine)) == 0
+
+        elif subr.getnumAgents(routine) == 1:
+            assert len(subr.agentList) == 1
+            alist = subr.getAgentList(routine)
+            alist[0].updateBounds(subr, routine)
+            alist[0](routine)
+            print('subr.agentList[0].getRegion(routine).input_space, subr.input_space : ',subr.agentList[0].getRegion(routine).input_space, subr.input_space)
+            assert alist[0].getRegion(routine) == subr
+            print('--------------------------------------')
+    
+    newSubreg = root.find_leaves()
+    newAgents = []
+    for newsub in newSubreg:
+        if routine == MAIN:
+            newsub.setRoutine(routine)
+        if newsub.getStatus(routine) == 1:
+            print('agent in new active region : ', newsub.input_space, newsub.agentList)
+            print('--------------------------------------')
+            assert len(newsub.getAgentList(routine)) == 1
+            newAgents.append(newsub.getAgentList(routine)[0])
+
+    return newAgents
+
+
+
 
 
 

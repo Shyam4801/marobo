@@ -10,7 +10,9 @@ class Agent():
         self.model = model
         self.point_history = []
         self.x_train = x_train
+        self.simXtrain = x_train
         self.y_train = y_train
+        self.simYtrain = y_train
         self.region_support = region_support
         self.simReg = region_support
 
@@ -35,9 +37,21 @@ class Agent():
             region = self.simReg
         if region.getStatus(routine) == 1:
             region.agent = self
+            # region.addAgentList(self, routine)
             print('active region gets assigned the agent using self')
         else:
             region.agent = None 
+
+    def resetAgentList(self, routine):
+        if routine == MAIN:
+            region = self.region_support
+        else:
+            region = self.simReg
+        if region.getStatus(routine) == 1:
+            region.addAgentList(self, routine)
+            print('Agent list reset after MC iter')
+        else:
+            region.agentList = []
 
     def updateModel(self):
         self.model = GPR(InternalGPR())
