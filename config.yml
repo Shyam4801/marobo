@@ -1,4 +1,5 @@
 sampling:
+  initBudget: 52
   mc_iters: 4
   num_inactive: 100
 log:

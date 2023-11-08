@@ -54,12 +54,25 @@ def exportTreeUsingPlotly(root, routine = MAIN):
         node_trace['y'] += tuple([y])
         print('graph.nodes[node]: ',graph.nodes[node], node)
         
+        if routine == MAIN:
+            dstr = "MAIN"
+            rd = node.avgRewardDist
+        else:
+            dstr = "ROLLOUT"
+            rd = node.rewardDist
+            
         if node.agent != None:
-            xtr = node.agent.x_train
+            if routine == MAIN:
+                xtr = node.agent.x_train
+            else:
+                xtr = node.agent.simXtrain
+            # xtr = xtr
+            # rd = node.rewardDist
         else:
             xtr = "Inactive"
+            # rd = "None"
         nl = "<br>"
-        node_trace['text'] += tuple([f'Node: {node.input_space},{nl} X Train:{nl} {xtr}'])
+        node_trace['text'] += tuple([f'Node {dstr}: {node.input_space},{nl} X Train:{nl} {xtr}, {nl} rewardDist:{nl} {rd}'])
 
     fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(

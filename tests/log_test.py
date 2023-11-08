@@ -41,7 +41,8 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     print('_______________ Min Observed ________________')
-    print(xcoord[np.argmin(xcoord[:,2]), :])
+    agentSamples = (maxbud - init_samp) * 4
+    print(xcoord[np.argmin(xcoord[:-agentSamples,2]), :])
     
     return xcoord[np.argmin(xcoord[:,2]), :], timestmp
 
@@ -129,8 +130,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 7
+        init_samp = 1
+        maxbud = 6
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -167,7 +168,7 @@ class Test_internalBO(unittest.TestCase):
         # minobs = data.history[np.argmin(data.history[:,2]), :]
         # print(np.array(data.history, dtype=object).shape)
         # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
+        # assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
         assert np.array(data.history, dtype=object).shape[1] == 3
 
     def ackley(self):

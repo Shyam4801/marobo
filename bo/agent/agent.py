@@ -8,6 +8,7 @@ from ..utils import compute_robustness
 class Agent():
     def __init__(self, model, x_train, y_train, region_support) -> None:
         self.model = model
+        self.simModel = model
         self.point_history = []
         self.x_train = x_train
         self.simXtrain = x_train
@@ -38,7 +39,7 @@ class Agent():
         if region.getStatus(routine) == 1:
             region.agent = self
             # region.addAgentList(self, routine)
-            print('active region gets assigned the agent using self')
+            # print('active region gets assigned the agent using self')
         else:
             region.agent = None 
 
@@ -49,13 +50,23 @@ class Agent():
             region = self.simReg
         if region.getStatus(routine) == 1:
             region.addAgentList(self, routine)
-            print('Agent list reset after MC iter')
+            # print('Agent list reset after MC iter')
         else:
             region.agentList = []
+
+    def updatesimModel(self):
+        self.simModel = GPR(InternalGPR())
+        self.simModel.fit(self.simXtrain, self.simYtrain)
 
     def updateModel(self):
         self.model = GPR(InternalGPR())
         self.model.fit(self.x_train, self.y_train)
+        self.simModel = self.model
+
+    def resetModel(self):
+        self.simModel = self.model
+        self.simXtrain = self.x_train
+        self.simYtrain = self.y_train
 
     def resetRegions(self):
         self.simReg = self.region_support

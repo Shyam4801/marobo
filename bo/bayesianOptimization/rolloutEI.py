@@ -106,9 +106,9 @@ class RolloutEI(InternalBO):
         print("serial_mc_iters: ",serial_mc_iters)
         # print(' initial agents obj: ',agents)
         # for currentAgentIdx in range(len(agents)):
-        self.root = self.get_exp_values(agents)
+        root = self.get_exp_values(agents)
 
-        print('b4 reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
+        # print('b4 reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
         # agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
         subregions = reassignUsingRewardDist(root, MAIN, agents)
         agents = partitionRegions(root, subregions, MAIN)
@@ -123,11 +123,11 @@ class RolloutEI(InternalBO):
         #     print('fxt :',f_xt)
         #     print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
         #     agent.y_train = np.hstack((agent.y_train, f_xt))
-        print('after reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
+        # print('after reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
         # export_tree_image(root, MAIN, f"results/trees/main/mainroot_after_{currentAgentIdx}_reassign.png")
-        exportTreeUsingPlotly(root)
+        # exportTreeUsingPlotly(root)
         assert len(agents) == num_agents
-        print(f'############################## End of Main iter ##############################################')
+        # print(f'############################## End of Main iter ##############################################')
         # if currentAgentIdx == 1:
         #     exit(1)
             
@@ -161,8 +161,8 @@ class RolloutEI(InternalBO):
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
         self.agents = agents
-        self.root = self.get_pt_reward(2)
-        # self.root = self._evaluate_at_point_list(agents)
+        # self.root = self.get_pt_reward(2)
+        self.root = self._evaluate_at_point_list(agents)
         # print("Tree after MC iters get_exp_values: ")
         # print_tree(self.root, MAIN)
         # print_tree(self.root, ROLLOUT)
@@ -180,19 +180,21 @@ class RolloutEI(InternalBO):
         #     print('MAIN Tree returned after joblib')
         #     print_tree(i, MAIN)
         # # len(results[0].find_leaves())
-        fin = np.zeros((1, len(results[0].find_leaves())))
+        fin = np.zeros((1,len(results[0].find_leaves()),4))#len(results[0].find_leaves()))) #len(results[0].find_leaves())
         for lf in results:
             lvs = lf.find_leaves()
+            # print('len leaves : ', len(lvs))
             # print('leaves reward :', [i.avgReward for i in lvs])
-            tmp = np.array([i.avgReward for i in lvs], dtype='object')
-            tmp = np.hstack(tmp)
-            # print('tmp :',tmp)
+            tmp = np.array([i.avgRewardDist for i in lvs], dtype='object')
+            # print('tmp b4 :',tmp)
+            tmp = tmp.reshape((1,len(lvs),4)) #np.hstack(tmp)
+            # print('tmp after :',tmp)
             fin = np.vstack((fin, tmp))
-        fin = fin[1:]
+        fin = fin[1:,:,:]
         # print('fin leaves ', fin)
-        fin = np.mean(fin, axis=0)
+        fin = np.mean(fin, axis=0)#, keepdims=True)
         # print('avg fin',fin)
-        self.root.setAvgRewards(fin.tolist())
+        self.root.setAvgRewards(fin)
 
         return self.root
         # lvs, avgval = find_leaves_and_compute_avg(results)
@@ -215,9 +217,9 @@ class RolloutEI(InternalBO):
             assert a.simReg == a.region_support
         for i in range(iters):
             # rw = 
-            print('agents in mc iter : ', [i.region_support.input_space for i in agents])
+            # print('agents in mc iter : ', [i.region_support.input_space for i in agents])
             self.get_h_step_with_part(agents)
-            export_tree_image(self.root, ROLLOUT, f"results/trees/rollout/MCtree_after_{i}_reassign.png")
+            # export_tree_image(self.root, ROLLOUT, f"results/trees/rollout/MCtree_after_{i}_reassign.png")
             assert(len(agents) == self.num_agents)
             # assert(len([]))
             for sima in lf:
@@ -225,21 +227,21 @@ class RolloutEI(InternalBO):
                 assert sima.routine == MAIN
                 accumulate_rewardDist(sima, self.num_agents)
                 # sima.avgRewardDist = sima.rewardDist
-                print('sima region to accumuulate rewardDist:', sima.input_space, sima.avgRewardDist)#, sima.avgRewardDist.shape,np.asarray(sima.rewardDist).shape )
-                print('--------------------------------------')
+                # print('sima region to accumuulate rewardDist:', sima.input_space, sima.avgRewardDist)#, sima.avgRewardDist.shape,np.asarray(sima.rewardDist).shape )
+                # print('--------------------------------------')
                 sima.rewardDist = np.asarray(sima.rewardDist, dtype="object").reshape((1, self.num_agents))
                 sima.avgRewardDist = np.vstack((sima.avgRewardDist, sima.rewardDist))
                 # sima.avgRewardDist = np.asarray((sima.avgRewardDist))
-                print('b4 sima avg reward Dist calc : ', sima.avgRewardDist, 'sima.rewardDist: ',sima.rewardDist)
-                print('--------------------------------------')
+                # print('b4 sima avg reward Dist calc : ', sima.avgRewardDist, 'sima.rewardDist: ',sima.rewardDist)
+                # print('--------------------------------------')
                 sima.avgRewardDist = np.sum(sima.avgRewardDist, axis=0) #[sum(i) for i in zip(sima.avgRewardDist, sima.rewardDist)]
-                print(sima.avgRewardDist.shape, sima.avgRewardDist.reshape((1, self.num_agents)))
+                # print(sima.avgRewardDist.shape, sima.avgRewardDist.reshape((1, self.num_agents)))
                 # sima.avgRewardDist = np.hstack((sima.avgRewardDist))
                 # sima.avgRewardDist.tolist()
-                print('sima avg reward Dist : ', sima.avgRewardDist)
-                print('--------------------------------------')
-                sima.resetRewardDist()
-                sima.avgReward += sima.reward
+                # print('sima avg reward Dist : ', sima.avgRewardDist)
+                # print('--------------------------------------')
+                sima.resetRewardDist(self.num_agents)
+                # sima.avgReward += sima.reward
                 sima.child = []
                 sima.resetStatus()
                 sima.resetTrace(MAIN)
@@ -248,20 +250,21 @@ class RolloutEI(InternalBO):
                 a.resetRegions()
                 a(MAIN)
                 a.resetAgentList(MAIN)
+                a.resetModel()
                 assert a.simReg == a.region_support
             
 
-            print(f'########################### End of MC iter {i} #################################################')
+            # print(f'########################### End of MC iter {i} #################################################')
         # reward = np.array(reward, dtype='object')
         # print(">>>>>>>>>>>>>>>>>>>>>>>> Tree just b4 avg reward update >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         # print_tree(self.root, ROLLOUT)
         # (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         for i in range(len(lf)):
             lf[i].avgRewardDist = lf[i].avgRewardDist / iters
-            print('lf[i].avgRewardDist: ', lf[i].avgRewardDist)
-            print('--------------------------------------')
-        
-        
+            # print('lf[i].avgRewardDist: ', lf[i].avgRewardDist)
+            # print('--------------------------------------')
+        # print_tree(self.root, MAIN)
+        # exportTreeUsingPlotly(self.root, MAIN)
         # print()
         # print(">>>>>>>>>>>>>>>>>>>>>>>> Tree after avg reward update >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         # print_tree(self.root, MAIN)
@@ -294,67 +297,94 @@ class RolloutEI(InternalBO):
             totalVolume = 0
             for reg in xt:
                 totalVolume += reg.getVolume()
-                reg.resetRewardDist()
+                # reg.resetRewardDist()
+                # reg.reward = []
             
-            for a in agents:
-                model = a.model
+            for ix, a in enumerate(agents):
+                model = a.simModel
                 ytr = a.simYtrain
-                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                print(' agent sim y train ', ytr, min(ytr))
-                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print(' agent sim y train ', ytr, min(ytr))
+                # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 for reg in xt:
                     if reg.rolloutStatus == 1:
                         next_xt = self._opt_acquisition(ytr,model,reg.input_space,self.rng)  # reg.agent.model
                         next_xt = np.asarray([next_xt])
                         mu, std = self._surrogate(model, next_xt)
                         f_xt = np.random.normal(mu,std,1)
-                        # reg.reward += (-1 * self.reward(f_xt,ytr))
-                        reg.rewardDist.append((-1 * self.reward(f_xt,ytr)))
+                        # reg.reward.append( (-1 * self.reward(f_xt,ytr)))
+                        # reg.rewardDist.append((-1 * self.reward(f_xt,ytr)))
+                        reg.rewardDist[ix] += (-1 * self.reward(f_xt,ytr))
+
+                        # print('agent ytr :', ytr, reg.input_space)
                     
                     else:
                         smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                         mu, std = self._surrogate(model, smp)
+                        reward = float('inf')
                         for i in range(len(smp)):
                             f_xt = np.random.normal(mu[i],std[i],1)
                             smp_reward = self.reward(f_xt,ytr)
-                            if reg.reward > -1*smp_reward:
-                                reg.reward += (-1 * smp_reward)
+                            if reward > -1*smp_reward:
+                                reward = ((-1 * smp_reward))
                                 reg.addSample(smp[i])
-                        reg.rewardDist.append(reg.reward)
+                        # reg.rewardDist.append(reg.reward)
+                        reg.rewardDist[ix] += (reward)
+                    # reg.rewardDist = np.vstack((reg.rewardDist, reg.reward))
+                    # reg.rewardDist = np.sum(reg.rewardDist, axis=0)
+                    # print('agent ytr :', ytr, reg.input_space, min(ytr), f_xt)
                     # print("reward of all leaves : ",reg.input_space, reg.reward)
                     # reg.rewardDist = np.hstack((reg.rewardDist))
+                    # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                    # print('agent reward dist : ', reg.rewardDist)
+                    # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>>> {ix} >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                     
             # print()
-            print('Rollout reassignments in the tree directly ')
+            # print('Rollout reassignments in the tree directly ')
             # print()
             currentAgentIdx = self.num_agents - h
-            print_tree(rl_root, ROLLOUT)
-            print('b4 reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
+            # print_tree(rl_root, ROLLOUT)
+            # print('b4 reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             # agents = reassign(rl_root, ROLLOUT, agents, currentAgentIdx, tmp_gpr, self.x_train, ytr)
             subregions = reassignUsingRewardDist(rl_root, ROLLOUT, agents)
             agents = partitionRegions(rl_root, subregions, ROLLOUT)
-            print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
+            # print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             # export_tree_image(rl_root, ROLLOUT, f"results/trees/rollout/rlroot_after_{h}_reassign.png")
             # exportTreeUsingPlotly(rl_root)
 
-            print_tree(rl_root, ROLLOUT)
+            # print_tree(rl_root, ROLLOUT)
             assert len(agents) == self.num_agents
 
             xt = rl_root.find_leaves() 
             for agent in agents:
                 assert agent.simReg.getStatus(ROLLOUT) == 1
                 # if reg.rolloutStatus == 1:
-                next_xt = self._opt_acquisition(agent.simYtrain, agent.model,agent.simReg.input_space,self.rng)
+                # actregSamples = uniform_sampling(50, agent.simReg.input_space, self.tf_dim, self.rng)
+                # mu, std = self._surrogate(agent.simModel, actregSamples)
+                # actY = []
+                # for i in range(len(actregSamples)):
+                #     f_xt = np.random.normal(mu[i],std[i],1)
+                #     actY.append(f_xt)
+                # actY = np.hstack((actY))
+                # # print('act Y ',actY)
+                # agent.simXtrain = np.vstack((agent.simXtrain , actregSamples))
+                # agent.simYtrain = np.hstack((agent.simYtrain, actY))
+                # agent.updatesimModel()
+
+                next_xt = self._opt_acquisition(agent.simYtrain, agent.simModel,agent.simReg.input_space,self.rng)
                 next_xt = np.asarray([next_xt])
-                mu, std = self._surrogate(agent.model, next_xt)
+                mu, std = self._surrogate(agent.simModel, next_xt)
                 f_xt = np.random.normal(mu,std,1)
-                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                print('fxt :',f_xt)
-                print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
+                # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print('fxt :',f_xt)
+                # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
+                agent.simXtrain = np.vstack((agent.simXtrain , next_xt))
                 agent.simYtrain = np.hstack((agent.simYtrain, f_xt))
+                agent.updatesimModel()
             h -= 1
             if h <= 0 :
                 break
+        # exportTreeUsingPlotly(rl_root, ROLLOUT)
 
         # exit(0)
     

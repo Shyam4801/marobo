@@ -12,8 +12,8 @@ class Node:
         self.mainStatus = status
         self.rolloutStatus = status
         self.agent = None
-        self.reward = 0
-        self.rewardDist = []
+        self.reward = []
+        self.rewardDist = np.zeros((4))
         self.avgRewardDist = np.zeros((1,4))
         self.numAgents = status
         self.agentList = []
@@ -40,8 +40,8 @@ class Node:
     # def updateRewardDist(self, routine, reward):
     #     self.rewardDist
 
-    def resetRewardDist(self):
-        self.rewardDist = []
+    def resetRewardDist(self, numAgents):
+        self.rewardDist = np.zeros((numAgents))
 
     def getVolume(self):
         vol = compute_volume(self.input_space)
@@ -145,13 +145,19 @@ class Node:
         return leaves
     
     def setAvgRewards(self, rewards):
-        if not rewards:
+        if len(rewards) == 0:
             return
 
         for i in range(len(self.child)):
             if not self.child[i].child:
                 # Assign a value to the leaf node
-                self.child[i].avgReward = rewards.pop()
+                rw = rewards[-1]
+                
+                rewards = np.delete(rewards, [-1], axis=0)
+                # print('rw : ',rw)
+                # rewards = rewards[:-1]
+                # print('rewards after pop : ', rewards)
+                self.child[i].avgRewardDist = rw
             else:
                 self.child[i].setAvgRewards(rewards)
 

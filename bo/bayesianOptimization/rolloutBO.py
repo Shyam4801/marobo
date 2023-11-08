@@ -7,7 +7,7 @@ from scipy.stats import norm
 from tqdm import tqdm
 from ..utils.visualize import contour
 import plotly.graph_objects as go
-
+import yaml
 
 from .bointerface import BO_Interface
 from .rolloutEI import RolloutEI
@@ -22,6 +22,9 @@ from ..agent.partition import Node
 from ..agent.agent import Agent
 from ..agent.constants import *
 from ..utils.logger import logtime, LOGPATH
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -85,14 +88,14 @@ class RolloutBO(BO_Interface):
             testv += i.getVolume()
 
         assert X_root.getVolume() == testv
-        print('set([i.getVolume() for i in agents_to_subregion]) :', set([i.getVolume() for i in agents_to_subregion]))
+        # print('set([i.getVolume() for i in agents_to_subregion]) :', set([i.getVolume() for i in agents_to_subregion]))
         
         agents = []
         globalXtrain = np.empty((1,tf_dim))
         globalYtrain = np.empty((1))
 
         init_sampling_type = "uniform_sampling"
-        init_budget = 8
+        init_budget = configs['sampling']['initBudget'] #x_train.shape[0]
 
         for l in agents_to_subregion:
             l.setRoutine(MAIN)
@@ -114,7 +117,7 @@ class RolloutBO(BO_Interface):
             print('_____________________________________', sample)
             # print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
             print('_____________________________________')
-            print('global dataset : ', x_train.shape, y_train.shape)
+            print('global dataset : ', globalXtrain.shape, globalYtrain.shape)
             print('_____________________________________')
             model = GPR(gpr_model)
             model.fit(globalXtrain, globalYtrain)
@@ -123,13 +126,13 @@ class RolloutBO(BO_Interface):
             pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, agents, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
             
-            x_train = np.vstack((x_train, pred_sample_x))
-            y_train = np.hstack((y_train, (pred_sample_y)))
-            print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
+            globalXtrain = np.vstack((globalXtrain, pred_sample_x))
+            globalYtrain = np.hstack((globalYtrain, (pred_sample_y)))
+            # print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
             for i,a in enumerate(agents):
-                print(f'b4 appendign agent {i} xtrain :', a.x_train)
+                # print(f'b4 appendign agent {i} xtrain :', a.x_train)
                 a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
-                print(f'agent {i} xtrain :', a.x_train)
+                # print(f'agent {i} xtrain :', a.x_train)
                 a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
                 a.updateModel()
         plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
