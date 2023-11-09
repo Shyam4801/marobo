@@ -42,7 +42,7 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     xcoord = xcoord.to_numpy()
     print('_______________ Min Observed ________________')
     agentSamples = (maxbud - init_samp) * 4
-    print(xcoord[52+np.argmin(xcoord[-agentSamples:,-2]), :])
+    print(xcoord[53+np.argmin(xcoord[-agentSamples:,-2]), :])
     print(f'_______________ Index of Min Observed _{agentSamples}_______________')
     print(np.argmin(xcoord[-agentSamples:,-2]))
     return xcoord[np.argmin(xcoord[:,-2]), :], timestmp
@@ -132,7 +132,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 6
+        maxbud = 11
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
