@@ -112,7 +112,7 @@ class RolloutBO(BO_Interface):
         
         globalXtrain = globalXtrain[1:]
         globalYtrain = globalYtrain[1:]
-        # print('globalXtrain, globalYtrain :', globalXtrain, globalYtrain)
+        print('globalXtrain, globalYtrain :', min(globalYtrain))
         for sample in tqdm(range(num_samples)):
             print('_____________________________________', sample)
             # print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
