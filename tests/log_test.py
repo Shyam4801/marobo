@@ -41,11 +41,11 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     agentSamples = (maxbud - init_samp) * 4
-    print(xcoord[52+np.argmin(xcoord[-agentSamples:,2]), :])
+    print(xcoord[52+np.argmin(xcoord[-agentSamples:,-2]), :])
     print(f'_______________ Index of Min Observed _{agentSamples}_______________')
-    print(np.argmin(xcoord[-agentSamples:,2]))
+    print(np.argmin(xcoord[-agentSamples:,-2]))
     
-    return xcoord[np.argmin(xcoord[:,2]), :], timestmp
+    return xcoord[np.argmin(xcoord[:,-2]), :], timestmp
 
 class Test_internalBO(unittest.TestCase):
     logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ class Test_internalBO(unittest.TestCase):
         
         minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
         
-        print('seeds :',seeds)
+        print('seeds :',seeds, 'minobs: ', minobs)
         sdf = pd.DataFrame(seeds)
         sdf.to_csv(timestmp+'/sdf.csv')
         init_vol = compute_volume(region_support)
