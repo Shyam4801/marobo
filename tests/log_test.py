@@ -43,7 +43,8 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     print('_______________ Min Observed ________________')
     agentSamples = (maxbud - init_samp) * 4
     print(xcoord[np.argmin(xcoord[:-agentSamples,2]), :])
-    
+    print(f'_______________ Index of Min Observed _{agentSamples}_______________')
+    print(np.argmin(xcoord[:-agentSamples,2]))
     return xcoord[np.argmin(xcoord[:,2]), :], timestmp
 
 class Test_internalBO(unittest.TestCase):

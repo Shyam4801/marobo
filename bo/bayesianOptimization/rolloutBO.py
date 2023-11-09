@@ -123,7 +123,7 @@ class RolloutBO(BO_Interface):
             model.fit(globalXtrain, globalYtrain)
             self.ei_roll = RolloutEI()
                 
-            pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, agents, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
+            pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
             
             globalXtrain = np.vstack((globalXtrain, pred_sample_x))

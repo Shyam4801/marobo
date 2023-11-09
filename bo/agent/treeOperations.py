@@ -194,15 +194,15 @@ def reassignUsingRewardDist(root, routine, agents):
         else:
             rewardStack.append(np.hstack((subr.rewardDist)))
     
-    # print('rewardStack: ',rewardStack)
+    print('rewardStack: ',rewardStack)
     minsubreg = np.asarray(rewardStack, dtype="object")
     minsubreg = minsubreg.reshape((len(subregs), 4))
     # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
     assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
     minsubregIdx = np.argmin(minsubreg ,axis=0)
-    # print('--------------------------------------')
-    # print('minsubregIdx: ',minsubregIdx)
-    # print('--------------------------------------')
+    print('--------------------------------------')
+    print('minsubregIdx: ',minsubregIdx)
+    print('--------------------------------------')
         
     for idx, a in enumerate(agents[::-1]):
         # deactivate curr subreg
@@ -225,7 +225,7 @@ def reassignUsingRewardDist(root, routine, agents):
         # print('--------------------------------------')
         # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList))
         assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
-    # print('num agents : ',[i.getnumAgents(routine) for i in subregs])
+    print('num agents : ',[i.getnumAgents(routine) for i in subregs])
     # print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
     # print('--------------------------------------')
     # partitionRegions(subregs)

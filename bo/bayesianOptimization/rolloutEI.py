@@ -131,11 +131,11 @@ class RolloutEI(InternalBO):
         # if currentAgentIdx == 1:
         #     exit(1)
             
-        #     print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
-        #     print_tree(self.root, MAIN)
-        #     # print('Rollout tree in main routine ')
-        #     print_tree(self.root, ROLLOUT)
-        #     print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+        print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
+        print_tree(self.root, MAIN)
+    #     # print('Rollout tree in main routine ')
+    #     print_tree(self.root, ROLLOUT)
+        print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
         # print('########################### End of MA #################################################')
         # # print('final subx : ',subx)
         # print('############################################################################')
@@ -275,8 +275,9 @@ class RolloutEI(InternalBO):
     def get_h_step_with_part(self, agents):
         reward = 0
         # Temporary Gaussian prior 
-        tmp_gpr = copy.deepcopy(self.gpr_model)
-        # ytr = copy.deepcopy(self.y_train)
+        commonGPR = copy.deepcopy(self.gpr_model)
+        ytr = copy.deepcopy(self.y_train)
+        xtr = copy.deepcopy(self.x_train)
         h = self.horizon
         rl_root = self.root #copy.deepcopy(self.root)
         xt = rl_root.find_leaves()  #self.subregions
@@ -301,8 +302,8 @@ class RolloutEI(InternalBO):
                 # reg.reward = []
             
             for ix, a in enumerate(agents):
-                model = a.simModel
-                ytr = a.simYtrain
+                model = commonGPR
+                # ytr = agent.simYtrain
                 # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 # print(' agent sim y train ', ytr, min(ytr))
                 # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -371,16 +372,16 @@ class RolloutEI(InternalBO):
                 # agent.simYtrain = np.hstack((agent.simYtrain, actY))
                 # agent.updatesimModel()
 
-                next_xt = self._opt_acquisition(agent.simYtrain, agent.simModel,agent.simReg.input_space,self.rng)
+                next_xt = self._opt_acquisition(ytr, commonGPR,agent.simReg.input_space,self.rng)
                 next_xt = np.asarray([next_xt])
-                mu, std = self._surrogate(agent.simModel, next_xt)
+                mu, std = self._surrogate(commonGPR, next_xt)
                 f_xt = np.random.normal(mu,std,1)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 # print('fxt :',f_xt)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
-                agent.simXtrain = np.vstack((agent.simXtrain , next_xt))
-                agent.simYtrain = np.hstack((agent.simYtrain, f_xt))
-                agent.updatesimModel()
+                xtr = np.vstack((xtr , next_xt))
+                ytr = np.hstack((ytr, f_xt))
+                commonGPR.fit(xtr,ytr)
             h -= 1
             if h <= 0 :
                 break
