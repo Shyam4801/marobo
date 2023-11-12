@@ -131,11 +131,11 @@ class RolloutEI(InternalBO):
         # if currentAgentIdx == 1:
         #     exit(1)
             
-        print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
-        print_tree(self.root, MAIN)
+        # print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
+        # print_tree(self.root, MAIN)
     #     # print('Rollout tree in main routine ')
     #     print_tree(self.root, ROLLOUT)
-        print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+        # print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
         # print('########################### End of MA #################################################')
         # # print('final subx : ',subx)
         # print('############################################################################')

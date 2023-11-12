@@ -126,13 +126,13 @@ class Test_internalBO(unittest.TestCase):
         
         sd = int(time.time())
         # seeds.append(sd)
-        seed = task_id + 2#12345
+        seed = task_id #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 11
+        maxbud = 41
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
