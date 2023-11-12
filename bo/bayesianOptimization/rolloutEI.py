@@ -131,8 +131,8 @@ class RolloutEI(InternalBO):
         # if currentAgentIdx == 1:
         #     exit(1)
             
-        #     print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
-        #     print_tree(self.root, MAIN)
+        # print('<<<<<<<<<<<<<<<<<<<<<<<< Main routine tree <<<<<<<<<<<<<<<<<<<<<<<<')
+        # print_tree(self.root, MAIN)
         #     # print('Rollout tree in main routine ')
         #     print_tree(self.root, ROLLOUT)
         #     print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
@@ -299,7 +299,7 @@ class RolloutEI(InternalBO):
                 totalVolume += reg.getVolume()
                 # reg.resetRewardDist()
                 # reg.reward = []
-            
+            minytr = float('inf')
             for ix, a in enumerate(agents):
                 model = a.simModel
                 ytr = a.simYtrain

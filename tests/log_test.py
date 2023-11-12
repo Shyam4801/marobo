@@ -41,7 +41,7 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
     agentSamples = (maxbud - init_samp) * 4
-    print(xcoord[52+np.argmin(xcoord[-agentSamples:,-2]), :])
+    print(xcoord[53+np.argmin(xcoord[-agentSamples:,-2]), :])
     print(f'_______________ Index of Min Observed _{agentSamples}_______________')
     print(np.argmin(xcoord[-agentSamples:,-2]))
     
@@ -126,13 +126,13 @@ class Test_internalBO(unittest.TestCase):
         
         sd = int(time.time())
         # seeds.append(sd)
-        seed = task_id + 2#12345
+        seed = task_id#12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 6
+        maxbud = 41
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 

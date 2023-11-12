@@ -26,7 +26,7 @@ def get_subregion(root, num_agents, dic, dim):
     while len(q) < num_agents:
         cuts = dim % len(dic) 
         if len(q) % dic[cuts] == 0:
-            dim = np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) # #
+            dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
         curr = q.pop(0)
         
         # print('dim :', dim,'q: ', [i.input_space for i in q])
@@ -199,12 +199,19 @@ def reassignUsingRewardDist(root, routine, agents):
     minsubreg = minsubreg.reshape((len(subregs), 4))
     # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
     assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
-    minsubregIdx = np.argmin(minsubreg ,axis=0)
-    # print('--------------------------------------')
-    # print('minsubregIdx: ',minsubregIdx)
-    # print('--------------------------------------')
+    minsubregIdxAmongAll = np.argmin(minsubreg ,axis=0)
+    minsubregIdxAmongAgents = np.argmin(minsubreg[:len(agents)], axis=0)
+    
         
     for idx, a in enumerate(agents[::-1]):
+        if idx == 0:
+            minsubregIdx = minsubregIdxAmongAll
+        else:
+            minsubregIdx = minsubregIdxAmongAgents
+        
+        # print('--------------------------------------')
+        # print('minsubregIdx: ',minsubregIdx, f'of agent {idx}')
+        # print('--------------------------------------')
         # deactivate curr subreg
         currSubreg = a.getRegion(routine)
         # print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
