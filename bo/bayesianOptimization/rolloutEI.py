@@ -125,7 +125,7 @@ class RolloutEI(InternalBO):
         #     agent.y_train = np.hstack((agent.y_train, f_xt))
         # print('after reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
         # export_tree_image(root, MAIN, f"results/trees/main/mainroot_after_{currentAgentIdx}_reassign.png")
-        # exportTreeUsingPlotly(root)
+        exportTreeUsingPlotly(root, MAIN)
         assert len(agents) == num_agents
         # print(f'############################## End of Main iter ##############################################')
         # if currentAgentIdx == 1:
@@ -149,6 +149,7 @@ class RolloutEI(InternalBO):
             x_opt = self._opt_acquisition(y_train, a.model, a.region_support.input_space, rng) 
             # smp = np.vstack((smp, x_opt))
             x_opt_from_all.append(x_opt)
+
             # a.xtr = np.vstack((a.xtr, pred_sample_x))
             # a.ytr = np.hstack((a.ytr, (pred_sample_y)))
         subx = np.hstack((x_opt_from_all)).reshape((num_agents,self.tf_dim))

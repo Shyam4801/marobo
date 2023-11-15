@@ -97,18 +97,19 @@ class RolloutBO(BO_Interface):
         init_sampling_type = "uniform_sampling"
         init_budget = configs['sampling']['initBudget'] #x_train.shape[0]
 
-        for l in agents_to_subregion:
+        for id, l in enumerate(agents_to_subregion):
             l.setRoutine(MAIN)
             if l.getStatus(MAIN) == 1:
                 xtr, ytr = self.initAgents(l.input_space, init_sampling_type, int(init_budget/num_agents), tf_dim, rng)
                 # print(f'agent xtr ', xtr, ytr)
                 globalXtrain = np.vstack((globalXtrain, xtr))
                 globalYtrain = np.hstack((globalYtrain, ytr))
-                ag = Agent(None, xtr, ytr, l)
+                ag = Agent(id, None, xtr, ytr, l)
                 ag.updateModel()
                 ag(MAIN)
                 agents.append(ag)
                 l.addAgentList(ag, MAIN)
+                # print('new subr : ', l.input_space, 'agent : ', l.agent.id)
         
         globalXtrain = globalXtrain[1:]
         globalYtrain = globalYtrain[1:]
@@ -135,6 +136,17 @@ class RolloutBO(BO_Interface):
                 # print(f'agent {i} xtrain :', a.x_train)
                 a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
                 a.updateModel()
+                # print('a.id: ', a.id)
+                # print('agent rewards after main :', a.region_support.input_space , a.region_support.avgRewardDist, 'print(a.getStatus(MAIN)): ',(a.region_support.getStatus(MAIN)))
+
+                a.resetRegions()
+                # a(MAIN)
+                # a.resetAgentList(MAIN)
+                if a.region_support.getStatus(MAIN) == 0:
+                    a.region_support.agentList = []
+                a.region_support.resetavgRewardDist(num_agents)
+                # print('agent rewards after reset :', a.region_support.input_space , a.region_support.avgRewardDist)
+                
         plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
             # X_root.add_child(self.region_support)
         return falsified, self.region_support, plot_dict

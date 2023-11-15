@@ -42,6 +42,9 @@ class Node:
 
     def resetRewardDist(self, numAgents):
         self.rewardDist = np.zeros((numAgents))
+    
+    def resetavgRewardDist(self, numAgents):
+        self.avgRewardDist = np.zeros((numAgents))
 
     def getVolume(self):
         vol = compute_volume(self.input_space)

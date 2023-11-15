@@ -37,6 +37,11 @@ def logdf(data,init_samp,maxbud, name, yofmins, rollout=False):
     # tot_samples = xcoord['y'][:10]
     # tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
     # reduced_df = pd.DataFrame(tot_samples)
+    # dfdic = xcoord.iloc[:52,:-2].to_dict()
+    # initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
+    # with open(initpath+f'/initsmp.pickle', 'wb') as handle:
+    #     pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
     xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
@@ -113,7 +118,7 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (4, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (2, 1))  # Replicate the range 10 times along axis 0
 
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
@@ -126,7 +131,7 @@ class Test_internalBO(unittest.TestCase):
         
         sd = int(time.time())
         # seeds.append(sd)
-        seed = task_id#12345
+        seed = task_id #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()

@@ -52,7 +52,7 @@ def exportTreeUsingPlotly(root, routine = MAIN):
         x, y = pos[node]
         node_trace['x'] += tuple([x])
         node_trace['y'] += tuple([y])
-        print('graph.nodes[node]: ',graph.nodes[node], node)
+        # print('graph.nodes[node]: ',graph.nodes[node], node)
         
         if routine == MAIN:
             dstr = "MAIN"
@@ -64,20 +64,37 @@ def exportTreeUsingPlotly(root, routine = MAIN):
         if node.agent != None:
             if routine == MAIN:
                 xtr = node.agent.x_train
+                # id = node.agent.id
             else:
                 xtr = node.agent.simXtrain
+            id = node.agent.id
             # xtr = xtr
             # rd = node.rewardDist
         else:
             xtr = "Inactive"
-            # rd = "None"
+            id = "None"
         nl = "<br>"
-        node_trace['text'] += tuple([f'Node {dstr}: {node.input_space},{nl} X Train:{nl} {xtr}, {nl} rewardDist:{nl} {rd}'])
+        node_trace['text'] += tuple([f'Node {dstr}: {node.input_space},{nl} Agent ID:{nl} {id}, {nl} rewardDist:{nl} {rd}']) #{nl} X Train:{nl} {xtr}
 
     fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(
                         showlegend=False,
                         hovermode='closest',
                     ))
+
+    # Add event handler for click events
+    fig.update_traces(marker=dict(size=10, color=node_colors), selector=dict(mode='markers'))
+
+    # Update hovertext on click
+    fig.update_layout(
+        updatemenus=[
+            dict(
+                type="buttons",
+                x=1.05,
+                y=0.8,
+                buttons=[dict(label="X Train Info", method="relayout", args=["hovermode", "closest"])],
+            )
+        ],
+    )
 
     fig.show()

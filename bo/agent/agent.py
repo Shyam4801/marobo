@@ -6,7 +6,8 @@ from ..sampling import lhs_sampling, uniform_sampling
 from ..utils import compute_robustness
 
 class Agent():
-    def __init__(self, model, x_train, y_train, region_support) -> None:
+    def __init__(self, id, model, x_train, y_train, region_support) -> None:
+        self.id = id
         self.model = model
         self.simModel = model
         self.point_history = []
