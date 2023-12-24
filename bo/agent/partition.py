@@ -192,8 +192,9 @@ class Node:
                 internal_inactive_subregion.append(l)
         
         return assignments, agents_to_subregion, internal_inactive_subregion
+    
 
-
+    
 
 # n = Node(1,1)
 # n.reward = 1

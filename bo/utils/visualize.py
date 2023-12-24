@@ -5,11 +5,12 @@ from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 # from .constants import NAME, H
 import plotly.express as px
-# from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
 import plotly.io as pio
 pio.renderers.default = "browser"
 import os
+import plotly.offline as pyo
 
 def plot_convergence(df, name):
     plt.plot(df.index,df['ysofar'])
@@ -144,7 +145,7 @@ def sc():
     app.run_server(debug=True)
 
 
-def contour(agents, assignments, region, test_function, inactive_region_samples, sample, mins,minobs, fig = go.Figure()):
+def contour(agents, assignments, status, region, test_function, inactive_region_samples, sample, mins,minobs, fig = go.Figure()):
     app = Dash(__name__)
 
     print('sample ',sample)
@@ -164,7 +165,8 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
     agent_hist = agents #test_function.agent_point_history
     print('b4 reshape :',agent_hist)
     # agent_hist = np.array(agent_hist)
-    agent_hist = np.array(agent_hist).reshape((4*sample,2)) #[np.array(i).reshape((4,2)) for i in agent_hist ]
+    numagents = 4 #len(agents)
+    agent_hist = np.array(agent_hist).reshape((numagents*sample,2)) #[np.array(i).reshape((4,2)) for i in agent_hist ]
     # agent_hist = [i[-1] for i in agent_hist]
     print('after reshape ',agent_hist)
     print('inactive_region_samples:', inactive_region_samples)
@@ -193,10 +195,12 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
     # Z = (X - 2)**2 + (Y - 2)**2 
     # Z = X ** 2 + Y ** 2 -1
     # Z = (X[0]**2+X[1]-11)**2 + (X[0]+X[1]**2-7)**2
+    print(np.array([X,Y]).shape)
     Z = test_function(np.array([X,Y]), from_agent=None)
+    print('z ',Z.shape)
     # Create the figure
     # data = np.array(test_function.point_history)
-    print('glob mins : ', mins, minobs)
+    # print('glob mins : ', mins, minobs)
     minobsx = np.array(minobs[:2])
     minobsy = np.array(minobs[2])
 
@@ -271,13 +275,14 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
                     size=10
                 )
             ))
-
-        for i,t in enumerate(assignments[high-1]):
+        rng = (high-1) - (low-1)
+        for i,t in zip(status, assignments[low-1]):
+            print("assignments[low] :",[i.input_space for i in assignments[low-1]])
             min_x, max_x = t.input_space[0,0],t.input_space[0,1]
             min_y, max_y = t.input_space[1,0],t.input_space[1,1]
 
             
-            if assignments[high-1][t] >= 1:
+            if i >= 1:
                 fig.add_shape(
                 type="rect",
                 x0=min_x,
@@ -308,7 +313,9 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
         )
         fig.update_traces(hovertemplate='x: %{x}<br>y: %{y}<br>z: %{z:.2f}')
         # fig.update_shapes(selector=dict(type="rect"))
-        fig.write_html('/Users/shyamsundar/ASU/sem2/RA/psytaliro_bo/results/x2y2_plot.html')
+        # fig.write_html('/Users/shyamsundar/ASU/sem2/RA/psytaliro_bo/results/x2y2_plot.html')
+        
+
 
         return fig
     
@@ -333,6 +340,9 @@ def contour(agents, assignments, region, test_function, inactive_region_samples,
 
         # return fig
     # pio.orca.shutdown_server()
+    # pyo.plot(fig, filename='/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/x2y2_plot.html', auto_open=False)
+    # with open('/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/x2y2_plot.html', 'w') as file:
+    #     file.write(html.Div([app.layout]).to_html(full_html=False))
 
     app.run_server(debug=False)
     

@@ -1,6 +1,7 @@
 sampling:
-  initBudget: 52
-  mc_iters: 500
+  initBudget: 10
+  mc_iters: 4
   num_inactive: 100
 log:
   interval: 40
+testfunc: 'rastrigin'

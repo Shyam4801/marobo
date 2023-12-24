@@ -44,7 +44,7 @@ def exportTreeUsingPlotly(root, routine = MAIN):
         edge_trace['x'] += tuple([x0, x1, None])
         edge_trace['y'] += tuple([y0, y1, None])
 
-    node_colors = ['red' if node.getStatus(MAIN) == 0 else 'green' for node in graph.nodes()]
+    node_colors = ['red' if node.getStatus(routine) == 0 else 'green' for node in graph.nodes()]
 
     node_trace = go.Scatter(x=[], y=[], text=[], mode='markers', hoverinfo='text',marker=dict(size=10, color=node_colors))
 

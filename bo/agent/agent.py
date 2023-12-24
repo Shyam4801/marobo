@@ -17,6 +17,8 @@ class Agent():
         self.simYtrain = y_train
         self.region_support = region_support
         self.simReg = region_support
+        self.simregHist = [region_support.input_space]
+        self.regHist = [region_support.input_space]
 
     def initAgent(self, init_sampling_type, init_budget, tf_dim, rng):
         if init_sampling_type == "lhs_sampling":
@@ -87,6 +89,9 @@ class Agent():
     def updateBounds(self, region_support, routine):
         if routine == MAIN:
             self.region_support = region_support
+            self.regHist.append(region_support.input_space)
         else:
             self.simReg = region_support
+            self.simregHist.append(region_support.input_space)
+            # print('self.simregHist: ',self.simregHist)
 

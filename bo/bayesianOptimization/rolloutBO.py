@@ -22,6 +22,7 @@ from ..agent.partition import Node
 from ..agent.agent import Agent
 from ..agent.constants import *
 from ..utils.logger import logtime, LOGPATH
+from ..utils.savestuff import *
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
@@ -75,7 +76,10 @@ class RolloutBO(BO_Interface):
         # Domain reduces after each BO iteration 
         self.region_support = region_support
         self.assignments = []
+        self.assignmentsDict = []
+        self.status = []
         self.behavior = behavior
+        maintrace = []
 
         tf_dim = region_support.shape[0]
         X_root = Node(self.region_support, 1)
@@ -95,15 +99,19 @@ class RolloutBO(BO_Interface):
         globalYtrain = np.empty((1))
 
         init_sampling_type = "uniform_sampling"
-        init_budget = configs['sampling']['initBudget'] #x_train.shape[0]
+        init_budget = configs['sampling']['initBudget'] * tf_dim#x_train.shape[0]
 
         for id, l in enumerate(agents_to_subregion):
             l.setRoutine(MAIN)
             if l.getStatus(MAIN) == 1:
                 xtr, ytr = self.initAgents(l.input_space, init_sampling_type, int(init_budget/num_agents), tf_dim, rng)
-                # print(f'agent xtr ', xtr, ytr)
+                print(f'agent xtr ', xtr, ytr)
                 globalXtrain = np.vstack((globalXtrain, xtr))
                 globalYtrain = np.hstack((globalYtrain, ytr))
+
+        # for id, l in enumerate(agents_to_subregion):
+        #     l.setRoutine(MAIN)
+        #     if l.getStatus(MAIN) == 1:
                 ag = Agent(id, None, xtr, ytr, l)
                 ag.updateModel()
                 ag(MAIN)
@@ -123,32 +131,83 @@ class RolloutBO(BO_Interface):
             model = GPR(gpr_model)
             model.fit(globalXtrain, globalYtrain)
             self.ei_roll = RolloutEI()
-                
-            pred_sample_x, X_root, agents = self.ei_roll.sample(X_root, agents, num_agents, self.tf, x_train, self.horizon, y_train, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
+
+            pred_sample_x, X_root, agents = self.ei_roll.sample(sample, X_root, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
             pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=True)
-            
+            print('pred_sample_x, pred_sample_y: ', pred_sample_x, pred_sample_y)
             globalXtrain = np.vstack((globalXtrain, pred_sample_x))
             globalYtrain = np.hstack((globalYtrain, (pred_sample_y)))
+            print('min obs so far : ', pred_sample_x[np.argmin(pred_sample_y),:], np.min(pred_sample_y))
             # print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
+            assignments=[]
+            assignmentsDict=[]
+            status = []
             for i,a in enumerate(agents):
-                # print(f'b4 appendign agent {i} xtrain :', a.x_train)
+                # x_opt = self.ei_roll._opt_acquisition(globalYtrain, model, a.region_support.input_space, rng) 
+                # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=True)
+                # actregSamples = uniform_sampling(tf_dim*10, a.region_support.input_space, tf_dim, rng)
+                # pred_act, falsified = compute_robustness(actregSamples, test_function, behavior, agent_sample=True)
+                # # mu, std = self._surrogate(a.model, actregSamples)
+                # # actY = []
+                # # for i in range(len(actregSamples)):
+                # #     f_xt = np.random.normal(mu[i],std[i],1)
+                # #     actY.append(f_xt)
+                # # actY = np.hstack((actY))
+                # # # # print('act Y ',actY)
+                # # a.x_train = actregSamples #np.vstack((agent.simXtrain , actregSamples))
+                # # a.y_train = actY #np.hstack((agent.simYtrain, actY))
+                # # a.updateModel()
+                # # print(f'b4 appendign agent {i} xtrain :', a.x_train)
+                # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
+                # a.y_train = np.hstack((a.y_train, pred_xopt))
+
                 a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
-                # print(f'agent {i} xtrain :', a.x_train)
                 a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
+                # a.model = a.simModel
                 a.updateModel()
+                # globalXtrain = np.vstack((globalXtrain, np.asarray(x_opt)))
+                # globalYtrain = np.hstack((globalYtrain, pred_xopt))
+                # x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng) 
+                # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=False)
+                # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
+                # a.y_train = np.hstack((a.y_train, pred_xopt))
                 # print('a.id: ', a.id)
                 # print('agent rewards after main :', a.region_support.input_space , a.region_support.avgRewardDist, 'print(a.getStatus(MAIN)): ',(a.region_support.getStatus(MAIN)))
-
+                
                 a.resetRegions()
                 # a(MAIN)
                 # a.resetAgentList(MAIN)
                 if a.region_support.getStatus(MAIN) == 0:
                     a.region_support.agentList = []
                 a.region_support.resetavgRewardDist(num_agents)
-                # print('agent rewards after reset :', a.region_support.input_space , a.region_support.avgRewardDist)
+                # writetocsv(f'results/reghist/a{i}_{sample}',a.regHist)
+                maintrace.append(a.simregHist)
+                print(f'a.simregHist: {sample}',a.simregHist)
                 
-        plot_dict = {} #{'agents':self.agent_point_hist,'assignments' : self.assignments, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : self.inactive_subregion_samples, 'sample': num_samples}
-            # X_root.add_child(self.region_support)
+                # a.resetModel()
+                # print('agent rewards after reset :', a.region_support.input_space , a.region_support.avgRewardDist)
+                assignments.append(a.region_support)
+                assignmentsDict.append(a.region_support.input_space)
+                status.append(a.region_support.mainStatus)
+
+            # print('pred_sample_x, pred_sample_y: ', globalXtrain[-num_agents:], globalYtrain[-num_agents:])
+            # print('min obs so far : ', globalXtrain[-num_agents:][np.argmin(globalYtrain[-num_agents:]),:], np.min(globalYtrain[-num_agents:]))
+            self.assignments.append(assignments)
+            self.assignmentsDict.append(assignmentsDict)
+            pred_sample_x = globalXtrain[-num_agents:]
+            # print('shape : ',len(self.assignments))
+            # print('final agent regions in rolloutBO', [i[j].input_space for i in self.assignments for j in range(4)])
+            self.status.append(status)
+
+            inactive_subregion_samples = []   
+            self.agent_point_hist.extend(pred_sample_x)
+            # writetocsv(f'results/reghist/aSim{i}_{sample}',a.simregHist)
+
+        plot_dict = {'agents':self.agent_point_hist,'assignments' : self.assignments, 'status': status, 'region_support':region_support, 'test_function' : test_function, 'inactive_subregion_samples' : inactive_subregion_samples, 'sample': num_samples}
+        save_plot_dict = {'agents':self.agent_point_hist,'assignments' : self.assignmentsDict, 'status': status, 'region_support':region_support, 'test_function' : [], 'inactive_subregion_samples' : inactive_subregion_samples, 'sample': num_samples}
+        
+        # print(plot_dict)
+        save_node(save_plot_dict, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/plot_dict.pkl')
         return falsified, self.region_support, plot_dict
 
 

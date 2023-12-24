@@ -182,8 +182,28 @@ def dropChildren(node):
     for child in node.child:
         dropChildren(child)
 
+def find_level_of_leaf(root, target_leaf_value):
+        if root is None:
+            return None
 
-def reassignUsingRewardDist(root, routine, agents):
+        stack = [(root, [])]
+
+        while stack:
+            current_node, path = stack.pop()
+
+            # Check if the current node is a leaf and has the target value
+            if not current_node.child:
+                if current_node == target_leaf_value:
+                    # Calculate the level based on the path length
+                    return len(path)
+
+            # Add children to the stack for further exploration
+            for child in current_node.child:
+                stack.append((child, path + [current_node]))
+
+        return None
+
+def reassignPerAgentUsingRewardDist(currentAgentIdx, root, routine, agents):
     subregs = root.find_leaves() 
     
     rewardStack = []
@@ -208,6 +228,95 @@ def reassignUsingRewardDist(root, routine, agents):
     minsubregIdxAmongAgents = np.argmin(minsubreg[:len(agents)], axis=0)
     
         
+    for idx, a in enumerate(agents[currentAgentIdx:]):
+        idx += currentAgentIdx
+        a = agents[idx]
+        # idx = a.id
+        if idx == 0:
+            minsubregIdx = minsubregIdxAmongAll
+        else:
+            minsubregIdx = minsubregIdxAmongAgents
+        # if routine == MAIN:
+        #     print('--------------------------------------')
+        #     print('minsubregIdx: ',minsubregIdx, f'of agent {a.id}')
+        #     print('--------------------------------------')
+        # deactivate curr subreg
+        currSubreg = a.getRegion(routine)
+        # print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
+        # print([{i: i.getRegion(MAIN).input_space} for i in currSubreg.getAgentList(MAIN)])
+        # print('--------------------------------------')
+        currSubreg.reduceNumAgents(routine)
+        # print('currSubreg agentList region: b4 removal ',len(currSubreg.getAgentList(routine)) ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
+        currSubreg.removeFromAgentList(a, routine)
+        # print('--------------------------------------')
+        # if currSubreg.numAgents > 
+        # currSubreg.agent
+        # a(routine)
+        # activate new sub reg
+        # subregs = subregs[::-1]
+        subregs[minsubregIdx[idx]].updateStatus(1, routine)
+        subregs[minsubregIdx[idx]].increaseNumAgents(routine)
+        subregs[minsubregIdx[idx]].addAgentList(a, routine)
+        # print('subregs[minsubregIdx[idx]]: ',subregs[minsubregIdx[idx]].input_space)
+        # if routine == MAIN:
+        # print('--------------------------------------')
+        # print(subregs[minsubregIdx[idx]].input_space)
+        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList), subregs[minsubregIdx[idx]].getnumAgents(routine))
+        assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
+    # print('num agents : ',[i.getnumAgents(routine) for i in subregs])
+    # print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
+    # print('--------------------------------------')
+    # partitionRegions(subregs)
+    return subregs
+
+def reassignUsingRewardDist(root, routine, agents):
+    subregs = root.find_leaves() 
+    
+    rewardStack = []
+    subregs = sorted(subregs, key=lambda x: (x.getStatus(routine) == 0, x.agent.id if x.getStatus(routine) == 1 else None))
+    for subr in subregs:
+        if routine == MAIN:
+            # if subr.agent != None:
+            #     print('subr.agent.id: ',subr.agent.id, 'status :',subr.getStatus(routine))
+            # print('subr.avgRewardDist: ', subr.avgRewardDist, subr.input_space)
+            rewardStack.append(np.hstack((subr.avgRewardDist)))
+        else:
+            rewardStack.append(np.hstack((subr.rewardDist)))
+        # if routine == MAIN:
+        #     print(agent)
+    # print('rewardStack: ',rewardStack)
+    minsubreg = np.asarray(rewardStack, dtype="object")
+    minsubreg = minsubreg.reshape((len(subregs), 4))
+    # if routine == MAIN:
+        # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
+    
+    # print('level: ',level)
+    # sorted_indices = sorted(enumerate(minsubreg), key=lambda x: x[1])
+    # # Extract the sorted indices
+    # sorted_indices_only = [index for index, value in sorted_indices]
+    assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
+
+    agent0 = minsubreg[:,0]
+    
+    minsubregIdxAmongAll = np.argmin(minsubreg ,axis=0)
+    minsubregIdxAmongAgents = np.argmin(minsubreg[:len(agents)], axis=0)
+
+    
+    # if minsubregIdxAmongAll[0] >= 4:
+    #     level = [find_level_of_leaf(root, n) for n in subregs]
+    #     # print('^'*100,'agent 0 ', agent0)
+    #     # print('minsubregIdxAmongAll b4: ',minsubregIdxAmongAll)
+    #     curragentlevel = find_level_of_leaf(root, subregs[0])
+    #     leveltolook = 1
+    #     filtered_indices = np.where(np.array(level) >= curragentlevel- leveltolook)[0]
+    #     # print('filtered_indices: ',filtered_indices)
+    #     # Sort the filtered elements of array a
+    #     sorted_indices = np.argsort(agent0[filtered_indices])
+    #     # print('sorted_indices: ',sorted_indices)
+    #     minsubregIdxAmongAll[0] = filtered_indices[sorted_indices[0]]
+    #     # print('minsubregIdxAmongAll after getting leaf in nearest level: ',minsubregIdxAmongAll)
+    #     # print('^'*100)
+
     for idx, a in enumerate(agents):
         # idx = a.id
         if idx == 0:
