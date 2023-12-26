@@ -19,6 +19,7 @@ class Agent():
         self.simReg = region_support
         self.simregHist = [region_support.input_space]
         self.regHist = [region_support.input_space]
+        self.pointsToeval = None
 
     def initAgent(self, init_sampling_type, init_budget, tf_dim, rng):
         if init_sampling_type == "lhs_sampling":
@@ -45,6 +46,10 @@ class Agent():
             # print('active region gets assigned the agent using self')
         else:
             region.agent = None 
+
+    def getSamplesToeval(self, smp, tf_dim, rng):
+        actregSamples = uniform_sampling(smp, self.region_support.input_space, tf_dim, rng)
+        self.pointsToeval = actregSamples
 
     def resetAgentList(self, routine):
         if routine == MAIN:

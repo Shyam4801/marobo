@@ -181,7 +181,7 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (4, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (2, 1))  # Replicate the range 10 times along axis 0
 
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
@@ -200,7 +200,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 6
+        maxbud = 3
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 

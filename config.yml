@@ -1,6 +1,6 @@
 sampling:
   initBudget: 10
-  mc_iters: 4
+  mc_iters: 20
   num_inactive: 100
 log:
   interval: 40
