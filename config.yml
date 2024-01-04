@@ -1,7 +1,7 @@
 sampling:
   initBudget: 10
-  mc_iters: 20
+  mc_iters: 4
   num_inactive: 100
 log:
   interval: 40
-testfunc: 'rastrigin'
+testfunc: 'mod_branin'

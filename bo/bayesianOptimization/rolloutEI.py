@@ -280,11 +280,11 @@ class RolloutEI(InternalBO):
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
         self.agents = agents
-        samples = 30
+        samples = 5
         for a in agents:
             if a.pointsToeval == None:
                 a.getSamplesToeval(samples, self.tf_dim, self.rng)
-                next_xt = self._opt_acquisition(self.y_train,a.model,a.region_support.input_space,self.rng)  # reg.agent.model
+                next_xt = self._opt_acquisition(self.y_train,self.gpr_model,a.region_support.input_space,self.rng)  # reg.agent.model
                 next_xt = np.asarray([next_xt])
                 a.pointsToeval = np.vstack((a.pointsToeval , next_xt))
                 # print('aid - pointsToeval: ',a.id, a.pointsToeval)
@@ -292,12 +292,30 @@ class RolloutEI(InternalBO):
         for smp in range(samples):
             self.smp = smp
             # self.root = self.get_pt_reward(2)
+            # for i,a in enumerate(agents):
+                # if smp == 10:
+                #     # minrewardDist, minrewardDistIdx = min_diagonal(avgrewards)
+                #     x_opt = a.pointsToeval
+                #     a.simXtrain = np.array([x_opt]) #np.vstack((a.simXtrain, ))
+                #     a.simYtrain = np.array(a.evalRewards) #a.np.vstack((a.simYtrain, minrewardDist[i]))
+                #     a.updatesimModel()
+                #     print('aid, a.simXtrain, a.simYtrain after collecting 10 hstep rewards: ', a.id, a.simXtrain, a.simYtrain)
+
             avgAgentrewards = np.zeros((1,self.num_agents))
             self.root = self._evaluate_at_point_list(agents)
             for a in agents:
                 # avgAgentrewards.append(a.region_support.avgRewardDist)
                 avgAgentrewards = np.vstack((avgAgentrewards, a.region_support.avgRewardDist.reshape((1,self.num_agents))))
-            print(avgAgentrewards, avgAgentrewards.shape)
+                a.appendevalReward(avgAgentrewards[a.id][a.id])
+                # print('a.pointsToeval[:smp]: ',a.pointsToeval[:smp+1], a.pointsToeval[:smp+1].shape )
+                a.x_train = np.vstack((a.x_train, a.pointsToeval[:smp+1]))
+                a.y_train = np.hstack((a.y_train, np.array(a.evalRewards[:smp+1])))
+                a.updateModel()
+                a.resetModel()
+                # print('aid xtrain ,ytrain: ',a.id, a.x_train, a.y_train)
+                print('a.pointsToeval[:smp+1]: ',a.id , a.pointsToeval[:smp+1], a.evalRewards[:smp+1])
+
+            # print(avgAgentrewards, avgAgentrewards.shape)
             avgrewards = np.vstack((avgrewards, avgAgentrewards[1:].reshape((1,self.num_agents,self.num_agents))))
         # print("Tree after MC iters get_exp_values: ",avgrewards)
         # print_tree(self.root, MAIN)
@@ -351,14 +369,23 @@ class RolloutEI(InternalBO):
             a.resetRegions()
             a(MAIN)
             assert a.simReg == a.region_support
+            # a.x_train = np.vstack((a.x_train , a.pointsToeval[self.smp]))
         
         for i in range(iters):
             self.mc = i+1
             # print('agents in mc iter : ', [i.region_support.input_space for i in agents])
             save_node(self.root, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MC_{self.mc}.pkl')
-            for a in agents:
-                # print('inside MC a.pointsToeval[self.smp]: ',a.pointsToeval[self.smp])
-                a.simXtrain = np.vstack((a.simXtrain , a.pointsToeval[self.smp]))
+            # for a in agents:
+            #     # a.simXtrain = np.zeros((1,self.tf_dim))
+            #     # a.simYtrain = []
+            #     # print('inside MC a.pointsToeval[self.smp]: ',a.pointsToeval[self.smp])
+                
+            #     a.x_train = np.vstack((a.x_train , a.pointsToeval[self.smp]))
+            #     print()
+            #     a.resetModel()
+            # print('a.x_train, a.simXtrain: inside MC iter: ',a.x_train, a.simXtrain)
+                # a.simXtrain = a.simXtrain[1:]
+
             self.get_h_stepPerSmp_with_part(agents)
             # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/nodes/rl_root_{self.sample}_MCb4_{self.mc}.pkl')
             # export_tree_image(self.root, ROLLOUT, f"results/trees/rollout/MCtree_after_{i}_reassign.png")
@@ -394,6 +421,7 @@ class RolloutEI(InternalBO):
                 a(MAIN)
                 a.resetAgentList(MAIN)
                 a.resetModel()
+                # print('a.x_train, a.simXtrain: inside MC iter: ',a.x_train, a.simXtrain)
                 assert a.simReg == a.region_support
             
 
@@ -433,6 +461,8 @@ class RolloutEI(InternalBO):
         # print()
         # for a in agents:
         #     ytr = a.y_train
+        for a in agents:
+            a.simXtrain = np.vstack((a.simXtrain , np.array([a.pointsToeval[self.smp]]))) 
         reward = []
         # print('empty reward: ',reward)
         while(True):
@@ -449,7 +479,10 @@ class RolloutEI(InternalBO):
             minytrval = float('inf')
             minytr = []
             for ix, a in enumerate(agents):
-                model = a.simModel
+                # if h == 4:
+                #     axtr = deepcopy(a.simXtrain)
+                #     aytr = deepcopy(a.simYtrain)
+                model = deepcopy(a.simModel)
                 for ia in agents:
                     if min(ia.simYtrain) < minytrval:
                         minytrval = min(ia.simYtrain)
@@ -491,12 +524,22 @@ class RolloutEI(InternalBO):
                                     reward = ((-1 * smp_reward))
                                     reg.addSample(actregSamples[i])
                         else:
-                            pointToeval = a.simXtrain[-1]
+                            pointToeval = a.simXtrain[-1] 
+                            # print('a.simYtrain.shape[0]) == a.simXtrain.shape[0]: ',a.simYtrain.shape[0] , a.simXtrain.shape[0])
+                            assert (a.simYtrain.shape[0]) == a.simXtrain.shape[0] - 1
                             # print('pointToeval: ',pointToeval)
                             mu, std = self._surrogate(model, np.array([pointToeval]))
                             f_xt = np.random.normal(mu,std,1)
                             reward = (-1 * self.reward(f_xt,ytr))
+                            # aytr = np.hstack((aytr, f_xt))
+    
+                            # print('aid region b4 partition:', a.id, a.simReg.input_space)
+                            # axtr = np.vstack((axtr, np.array([pointToeval])))
+                            # a.simModel.fit(axtr, aytr)
                             a.simYtrain = np.hstack((a.simYtrain, f_xt))
+                            # a.simXtrain = np.vstack((a.simXtrain, np.array([pointToeval])))
+                            a.updatesimModel()
+                            # print('axtr shape : ','horizon: ',h, a.simXtrain.shape,a.simYtrain.shape, np.array([pointToeval]).shape)
 
                         
                         # reg.reward.append( (-1 * self.reward(f_xt,ytr)))
@@ -547,6 +590,13 @@ class RolloutEI(InternalBO):
             newx_opt = []
             for aidx, agent in enumerate(agents):
                 assert agent.simReg.getStatus(ROLLOUT) == 1
+                minytrval = float('inf')
+                minytr = []
+                for ia in agents:
+                    if min(a.simYtrain) < minytrval:
+                        minytrval = min(a.simYtrain)
+                        minytr = a.simYtrain
+                ytr = minytr
                 # if reg.rolloutStatus == 1:
                 # actregSamples = uniform_sampling(self.tf_dim*10, agent.simReg.input_space, self.tf_dim, self.rng)
                 # mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
@@ -564,6 +614,7 @@ class RolloutEI(InternalBO):
                 writetocsv(f'results/'+configs['testfunc']+f'/reghist/SimA_{agent.id}', [[self.sample, self.mc, agent.id, agent.simReg.input_space.tolist(), min(agent.simReg.rewardDist.tolist()), np.argmin(agent.simReg.rewardDist.tolist())]])
                 next_xt = self._opt_acquisition(ytr, agent.simModel,agent.simReg.input_space,self.rng)
                 agent.simXtrain = np.vstack((agent.simXtrain , next_xt))
+                # print('aid region after partition:', agent.id, agent.simReg.input_space)
             #     next_xt = np.asarray([next_xt])
             #     mu, std = self._surrogate(agent.simModel, next_xt)
             #     f_xt = np.random.normal(mu,std,1)
@@ -756,7 +807,8 @@ class RolloutEI(InternalBO):
         #     actY.append(f_xt)
         # actY = np.hstack((actY))
         # # print('act Y ',actY)
-        xtr = np.vstack((agent1.x_train , agent2.x_train))
+        numObs = agent1.y_train.shape[0]
+        xtr = np.vstack((agent1.x_train[:numObs] , agent2.x_train[:numObs]))
         ytr = np.hstack((agent1.y_train, agent2.y_train))
         model = GPR(InternalGPR())
         model.fit(xtr, ytr)

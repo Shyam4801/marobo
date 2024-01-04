@@ -7,7 +7,7 @@ from scipy.stats import norm
 from tqdm import tqdm
 from ..utils.visualize import contour
 import plotly.graph_objects as go
-import yaml
+import yaml, os
 
 from .bointerface import BO_Interface
 from .rolloutEI import RolloutEI
@@ -26,6 +26,9 @@ from ..utils.savestuff import *
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
+
+if not os.path.exists('results/'+configs['testfunc']):
+    os.makedirs('results/'+configs['testfunc'])
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -122,6 +125,7 @@ class RolloutBO(BO_Interface):
         globalXtrain = globalXtrain[1:]
         globalYtrain = globalYtrain[1:]
         print('globalXtrain, globalYtrain :', min(globalYtrain))
+        writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])
         for sample in tqdm(range(num_samples)):
             print('_____________________________________', sample)
             # print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
@@ -138,6 +142,8 @@ class RolloutBO(BO_Interface):
             globalXtrain = np.vstack((globalXtrain, pred_sample_x))
             globalYtrain = np.hstack((globalYtrain, (pred_sample_y)))
             print('min obs so far : ', pred_sample_x[np.argmin(pred_sample_y),:], np.min(pred_sample_y))
+            writetocsv(f'results/'+configs['testfunc']+'/result',[[pred_sample_x[:,0], pred_sample_x[:,1],  pred_sample_y]])
+            
             # print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
             assignments=[]
             assignmentsDict=[]
@@ -161,10 +167,10 @@ class RolloutBO(BO_Interface):
                 # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
                 # a.y_train = np.hstack((a.y_train, pred_xopt))
 
-                a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
-                a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
+                a.finalX = np.vstack((a.finalX, np.asarray([pred_sample_x[i]])))
+                a.finalY = np.hstack((a.finalY, pred_sample_y[i]))
                 # a.model = a.simModel
-                a.updateModel()
+                a.updateFinalModel()
                 # globalXtrain = np.vstack((globalXtrain, np.asarray(x_opt)))
                 # globalYtrain = np.hstack((globalYtrain, pred_xopt))
                 # x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng) 

@@ -124,7 +124,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 3
         name = Test_internalBO.x2y2.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -336,7 +336,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 4
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
