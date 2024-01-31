@@ -4,6 +4,7 @@ from .constants import MAIN
 from ..gprInterface import GPR, InternalGPR
 from ..sampling import lhs_sampling, uniform_sampling
 from ..utils import compute_robustness
+from copy import deepcopy
 
 class Agent():
     def __init__(self, id, model, x_train, y_train, region_support) -> None:
@@ -19,6 +20,7 @@ class Agent():
         self.simReg = region_support
         self.simregHist = [region_support.input_space]
         self.regHist = [region_support.input_space]
+        self.evalRewards = []
 
     def initAgent(self, init_sampling_type, init_budget, tf_dim, rng):
         if init_sampling_type == "lhs_sampling":
@@ -46,6 +48,30 @@ class Agent():
         else:
             region.agent = None 
 
+    def updateObs(self, parent, routine):
+        if routine == MAIN:
+            self.x_train = deepcopy(parent.agent.x_train)
+            self.y_train = deepcopy(parent.agent.y_train)
+            self.model = deepcopy(parent.agent.model)
+        else:
+            self.simXtrain = deepcopy(parent.agent.simXtrain)
+            self.simYtrain = deepcopy(parent.agent.simYtrain)
+            self.simModel = deepcopy(parent.agent.simModel)
+
+    def updateObsFromRegion(self, parent, routine):
+        # if routine == MAIN:
+        self.x_train = deepcopy(parent.xtr)
+        self.y_train = deepcopy(parent.ytr)
+        self.model = deepcopy(parent.model)
+        # else:
+        #     self.simXtrain = deepcopy(parent.agent.simXtrain)
+        #     self.simYtrain = deepcopy(parent.agent.simYtrain)
+        #     self.simModel = deepcopy(parent.agent.simModel) 
+
+
+    def appendevalReward(self, reward):
+        self.evalRewards.append(reward)
+
     def resetAgentList(self, routine):
         if routine == MAIN:
             region = self.region_support
@@ -64,12 +90,12 @@ class Agent():
     def updateModel(self):
         self.model = GPR(InternalGPR())
         self.model.fit(self.x_train, self.y_train)
-        self.simModel = self.model
+        self.simModel = deepcopy(self.model)
 
     def resetModel(self):
-        self.simModel = self.model
-        self.simXtrain = self.x_train
-        self.simYtrain = self.y_train
+        self.simModel = deepcopy(self.model)
+        self.simXtrain = deepcopy(self.x_train)
+        self.simYtrain = deepcopy(self.y_train)
 
     def resetRegions(self):
         self.simReg = self.region_support

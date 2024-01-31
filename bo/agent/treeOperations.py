@@ -3,6 +3,8 @@ from copy import deepcopy
 from .constants import *
 import numpy as np
 from .partition import Node
+from bo.sampling import uniform_sampling
+from bo.utils import compute_robustness
 
 def split_region(root,dim,num_agents):
     # print('split_region: dim',dim, num_agents)
@@ -203,6 +205,31 @@ def find_level_of_leaf(root, target_leaf_value):
 
         return None
 
+def arrays_equal(arr1, arr2):
+    return all(x == y for x, y in zip(arr1, arr2))
+
+def find_common_parent(root, node1, node2):
+    if root is None:
+        return None
+
+    # If either node1 or node2 has the same value as the current root, then the root is the common parent
+    if (root.input_space == node1.input_space).all() or (root.input_space == node2.input_space).all():
+        return root
+
+    # Recursively search in the children
+    child_results = []
+    for child in root.child:
+        result = find_common_parent(child, node1, node2)
+        if result:
+            child_results.append(result)
+
+    # If both nodes are found in different children, the current root is the common parent
+    if len(child_results) == 2:
+        return root
+
+    # If one of the nodes is found, return that node
+    return child_results[0] if child_results else None
+
 def reassignPerAgentUsingRewardDist(currentAgentIdx, root, routine, agents):
     subregs = root.find_leaves() 
     
@@ -269,7 +296,7 @@ def reassignPerAgentUsingRewardDist(currentAgentIdx, root, routine, agents):
     # partitionRegions(subregs)
     return subregs
 
-def reassignUsingRewardDist(root, routine, agents):
+def reassignUsingRewardDist(root, routine, agents, jump_prob):
     subregs = root.find_leaves() 
     
     rewardStack = []
@@ -319,7 +346,7 @@ def reassignUsingRewardDist(root, routine, agents):
 
     for idx, a in enumerate(agents):
         # idx = a.id
-        if idx == 0:
+        if idx == 0:# and jump_prob > 0.8:
             minsubregIdx = minsubregIdxAmongAll
         else:
             minsubregIdx = minsubregIdxAmongAgents
@@ -331,7 +358,8 @@ def reassignUsingRewardDist(root, routine, agents):
         currSubreg = a.getRegion(routine)
         # print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
         # print([{i: i.getRegion(MAIN).input_space} for i in currSubreg.getAgentList(MAIN)])
-        # print('--------------------------------------')
+        # if routine == MAIN:
+        #     print('-------------------------------------- inside reassign agent id', currSubreg.agent.id)
         currSubreg.reduceNumAgents(routine)
         # print('currSubreg agentList region: b4 removal ',len(currSubreg.getAgentList(routine)) ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
         currSubreg.removeFromAgentList(a, routine)
@@ -377,8 +405,16 @@ def partitionRegions(root, subregions, routine):
                 #assign self
                 agent(routine)
                 agent.getRegion(routine).addAgentList(agent, routine)
+                if routine == MAIN:
+                    rt = 'MAIN'
+                else:
+                    rt = 'ROLLOUT'
+                # print(f'b4 upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
+                agent.updateObs(subr, routine)
+                
+                # print(f'after upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
                 # print('agent.getRegion(routine): ',agent.getRegion(routine))
-                # print('--------------------------------------')
+                # print('-------------------more than 1 agent-------------------')
 
         elif subr.getnumAgents(routine) == 0:
             subr.updateStatus(0, routine)
@@ -392,7 +428,12 @@ def partitionRegions(root, subregions, routine):
             alist[0](routine)
             # print('subr.agentList[0].getRegion(routine).input_space, subr.input_space : ',subr.agentList[0].getRegion(routine).input_space, subr.input_space)
             assert alist[0].getRegion(routine) == subr
-            # print('--------------------------------------')
+            # if routine == MAIN:
+            # print(f'b4 upadting from parent {routine}',[alist[0].x_train if routine == MAIN else alist[0].simXtrain], [alist[0].x_train if routine == MAIN else alist[0].simXtrain])
+            # alist[0].updateObs(subr, routine)
+            alist[0].updateObsFromRegion(subr, routine)
+            # print(f'after upadting from parent {routine}',[alist[0].x_train if routine == MAIN else alist[0].simXtrain], [alist[0].x_train if routine == MAIN else alist[0].simXtrain])
+            # print('----------------exactly 1 agent ----------------------')
     
     newSubreg = root.find_leaves()
     newAgents = []
@@ -520,6 +561,77 @@ def find_leaves_and_compute_avg(trees):
     return leaves, avg_leaf_values
 
 
+def splitObs(agents, tf_dim, rng, routine, tf, behavior):
+        def filter_points_in_region(points, values, region):
+            # Create a boolean mask indicating which points fall within the region
+            mask = np.all(np.logical_and(region[:, 0] <= points, points <= region[:, 1]), axis=1)
+
+            # Filter the points and corresponding values based on the mask
+            if routine == MAIN:
+                print('idx err caught :', points, region, values)
+            filtered_points = points[mask]
+            # try:
+            filtered_values = values[mask]
+            
+            # except IndexError:
+            #     print('idx err caught :', points, region, filtered_points, filtered_values)
+
+            return filtered_points, filtered_values
+        
+        for a in agents:
+            if routine == MAIN:
+                print('agent id: ',a.id)
+                filtered_points, filtered_values = filter_points_in_region(a.x_train, a.y_train, a.region_support.input_space)
+                # xtr = a.x_train
+                # ytr = a.y_train
+                # reg = a.region_support.input_space
+            # else:
+            #     xtr = a.simXtrain
+            #     ytr = a.simYtrain
+            #     reg = a.simReg.input_space
+
+            
+                if len(filtered_points) == 0:
+                    print('reg and filtered pts len :',  a.region_support.input_space, a.id)
+
+                x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
+                y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+            
+                a.x_train = np.vstack((filtered_points, x_train))
+                a.y_train = np.hstack((filtered_values, y_train))
+
+                a.updateModel()
+            else:
+                filtered_points, filtered_values = filter_points_in_region(a.simXtrain, a.simYtrain, a.simReg.input_space)
+                a.simXtrain = filtered_points
+                a.simYtrain = filtered_values
+
+            # if routine == MAIN:
+                
+            # else:
+            #     a.updatesimModel()
+        return agents
+    
+
+def check_points(agent, routine):
+    if routine == MAIN:
+        xtr = agent.x_train
+        reg = agent.region_support.input_space
+    else:
+        xtr = agent.simXtrain
+        reg = agent.simReg.input_space
+
+    def point_in_region(points, region):
+        # Check if each coordinate of the point is within the corresponding bounds of the region
+        res = True
+        for point in points:
+            res = res and all(np.logical_and(region[:, 0] <= point, point <= region[:, 1]))
+            # if res == False:
+                # print('pt not in region :',agent.id, point, region)
+        return res
+
+    res = point_in_region(xtr, reg)
+    return res
 
 # n = Node(1,1)
 # n.reward = 1
@@ -569,3 +681,4 @@ def find_leaves_and_compute_avg(trees):
 # assert n.getVolume() == v
 # print('set([i.getVolume() for i in ch]) :', set([i.getVolume() for i in ch]))
 # print_tree(n, MAIN)
+

@@ -23,6 +23,9 @@ class Node:
         self.volume = 0
         self.numAgentsTrace = status
         self.agentListTrace = []
+        self.xtr = None
+        self.ytr = None
+        self.model = None
 
     def __call__(self):
         if self.agent != None:
@@ -30,6 +33,11 @@ class Node:
         else:
             self.agentList = []
 
+    def addFootprint(self, xtr , ytr, model):
+        self.xtr = deepcopy(xtr)
+        self.ytr = deepcopy(ytr)
+        self.model = deepcopy(model)
+         
 
     def resetTrace(self, routine):
          self.numAgents = self.getStatus(routine)

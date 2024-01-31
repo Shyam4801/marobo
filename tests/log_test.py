@@ -124,7 +124,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 11
         name = Test_internalBO.x2y2.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -167,7 +167,7 @@ class Test_internalBO(unittest.TestCase):
 
     def rastrigin(self):
         def internal_function(x, lb=None, ub=None, from_agent = None):
-            print('x inside rastrigin ',x.shape)#,x.reshape((10,1)))
+            # print('x inside rastrigin ',x.shape)#,x.reshape((10,1)))
             A = 10
             n = len(x)
             # return A * n + np.sum(x**2 - A * np.cos(2 * np.pi * x))
@@ -200,7 +200,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 6
+        maxbud = 10
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -236,8 +236,8 @@ class Test_internalBO(unittest.TestCase):
         
         # minobs = data.history[np.argmin(data.history[:,2]), :]
         # print(np.array(data.history, dtype=object).shape)
-        if len(region_support) == 2:
-            contour(plot_res['agents'], plot_res['assignments'], plot_res['status'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
+        # if len(region_support) == 2:
+        #     contour(plot_res['agents'], plot_res['assignments'], plot_res['status'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
         # assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
         assert np.array(data.history, dtype=object).shape[1] == 3
 
@@ -336,7 +336,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 11
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -391,7 +391,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 11
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -494,7 +494,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 11
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -628,7 +628,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 5
+        maxbud = 11
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,

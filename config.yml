@@ -4,4 +4,4 @@ sampling:
   num_inactive: 100
 log:
   interval: 40
-testfunc: 'rastrigin'
+testfunc: 'sixhump'
