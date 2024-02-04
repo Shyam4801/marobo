@@ -130,23 +130,28 @@ class RolloutBO(BO_Interface):
         for id, l in enumerate(agents_to_subregion):
             l.setRoutine(MAIN)
             if l.getStatus(MAIN) == 1:
-                xtr, ytr = self.initAgents(l.input_space, init_sampling_type, int(init_budget/num_agents), tf_dim, rng, store=False)
+                # xtr, ytr = self.initAgents(l.input_space, init_sampling_type, int(init_budget/num_agents), tf_dim, rng, store=False)
                 # print(f'agent xtr ', xtr, ytr)
-                globalXtrain = np.vstack((globalXtrain, xtr))
-                globalYtrain = np.hstack((globalYtrain, ytr))
+                # globalXtrain = np.vstack((globalXtrain, xtr))
+                # globalYtrain = np.hstack((globalYtrain, ytr))
 
         # for id, l in enumerate(agents_to_subregion):
         #     l.setRoutine(MAIN)
         #     if l.getStatus(MAIN) == 1:
-                mainag = Agent(id, None, xtr, ytr, l)
-                mainag.updateModel()
+                mainag = Agent(id, None, x_train, y_train, l)
+                # mainag.updateModel()
                 mainag(MAIN)
                 mainAgents.append(mainag)
                 l.addAgentList(mainag, MAIN)
                 # print('new subr : ', l.input_space, 'agent : ', l.agent.id)
+
+        # split initial obs 
+        mainAgents = splitObs(mainAgents, tf_dim, rng, MAIN, self.tf, self.behavior)
+        for a in mainAgents:
+            a.resetModel()
         
-        globalXtrain = globalXtrain[1:]
-        globalYtrain = globalYtrain[1:]
+        globalXtrain = x_train #globalXtrain[1:]
+        globalYtrain = y_train #globalYtrain[1:]
         if not os.path.exists(f'results/'+configs['testfunc']):
             os.makedirs(f'results/'+configs['testfunc'])
         writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])

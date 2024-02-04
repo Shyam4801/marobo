@@ -335,8 +335,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 1
-        maxbud = 11
+        init_samp = 20
+        maxbud = 23
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -628,7 +628,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 1
-        maxbud = 11
+        maxbud = 3
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,

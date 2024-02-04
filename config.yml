@@ -1,7 +1,7 @@
 sampling:
   initBudget: 10
-  mc_iters: 4
+  mc_iters: 8
   num_inactive: 100
 log:
   interval: 40
-testfunc: 'sixhump'
+testfunc: 'mod_branin'

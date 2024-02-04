@@ -445,6 +445,10 @@ def partitionRegions(root, subregions, routine):
             # print('--------------------------------------')
             assert len(newsub.getAgentList(routine)) == 1
             newAgents.append(newsub.getAgentList(routine)[0])
+            if routine == ROLLOUT:
+                # newsub.addFootprint(newsub.agent.x_train, newsub.agent.y_train, newsub.agent.model)
+            # else:
+                newsub.addFootprint(newsub.agent.simXtrain, newsub.agent.simYtrain, newsub.agent.simModel)
         # if routine == MAIN:
             # print('new subr : ', newsub.input_space, 'agent : ', newsub.agent.id)
 
@@ -567,8 +571,8 @@ def splitObs(agents, tf_dim, rng, routine, tf, behavior):
             mask = np.all(np.logical_and(region[:, 0] <= points, points <= region[:, 1]), axis=1)
 
             # Filter the points and corresponding values based on the mask
-            if routine == MAIN:
-                print('idx err caught :', points, region, values)
+            # if routine == MAIN:
+            #     print('idx err caught :', points, region, values)
             filtered_points = points[mask]
             # try:
             filtered_values = values[mask]
@@ -594,7 +598,7 @@ def splitObs(agents, tf_dim, rng, routine, tf, behavior):
                 if len(filtered_points) == 0:
                     print('reg and filtered pts len :',  a.region_support.input_space, a.id)
 
-                x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
+                x_train = uniform_sampling( 1, a.region_support.input_space, tf_dim, rng)
                 y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
             
                 a.x_train = np.vstack((filtered_points, x_train))
