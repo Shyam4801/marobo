@@ -12,10 +12,12 @@ class Agent():
         self.model = model
         self.simModel = model
         self.point_history = []
-        self.x_train = x_train
-        self.simXtrain = x_train
-        self.y_train = y_train
-        self.simYtrain = y_train
+        self.x_train = deepcopy(x_train)
+        self.simXtrain = deepcopy(x_train)
+        self.y_train = deepcopy(y_train)
+        self.simYtrain = deepcopy(y_train)
+        self.ActualXtrain = deepcopy(x_train)
+        self.ActualYtrain = deepcopy(y_train)
         self.region_support = region_support
         self.simReg = region_support
         self.simregHist = [region_support.input_space]
@@ -58,15 +60,27 @@ class Agent():
             self.simYtrain = deepcopy(parent.agent.simYtrain)
             self.simModel = deepcopy(parent.agent.simModel)
 
+    def testupdateObsFromRegion(self, parent, routine):
+        if routine == MAIN:
+            xtr, ytr , model = parent.mainPrior.getData(routine)
+            self.x_train = deepcopy(xtr)
+            self.y_train = deepcopy(ytr)
+            self.model = deepcopy(model)
+        else:
+            xtr, ytr , model = parent.rolloutPrior.getData(routine)
+            self.simXtrain = deepcopy(xtr)
+            self.simYtrain = deepcopy(ytr)
+            self.simModel = deepcopy(model)
+
     def updateObsFromRegion(self, parent, routine):
-        # if routine == MAIN:
-        self.x_train = deepcopy(parent.xtr)
-        self.y_train = deepcopy(parent.ytr)
-        self.model = deepcopy(parent.model)
-        # else:
-        #     self.simXtrain = deepcopy(parent.agent.simXtrain)
-        #     self.simYtrain = deepcopy(parent.agent.simYtrain)
-        #     self.simModel = deepcopy(parent.agent.simModel) 
+        if routine == MAIN:
+            self.x_train = deepcopy(parent.xtr)
+            self.y_train = deepcopy(parent.ytr)
+            self.model = deepcopy(parent.model)
+        else:
+            self.simXtrain = deepcopy(parent.xtr)
+            self.simYtrain = deepcopy(parent.ytr)
+            self.simModel = deepcopy(parent.model) 
 
 
     def appendevalReward(self, reward):
@@ -96,6 +110,10 @@ class Agent():
         self.simModel = deepcopy(self.model)
         self.simXtrain = deepcopy(self.x_train)
         self.simYtrain = deepcopy(self.y_train)
+
+    def resetActual(self):
+        self.x_train = deepcopy(self.ActualXtrain)
+        self.y_train = deepcopy(self.ActualYtrain)
 
     def resetRegions(self):
         self.simReg = self.region_support

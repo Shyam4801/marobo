@@ -15,7 +15,7 @@ from ..agent.treeOperations import * #reassign, find_close_factor_pairs, print_t
 
 from ..gprInterface import GPR
 from bo.gprInterface import InternalGPR
-from ..sampling import uniform_sampling, sample_from_discontinuous_region
+from ..sampling import uniform_sampling, sample_from_discontinuous_region, lhs_sampling
 from ..utils import compute_robustness
 from ..behavior import Behavior
 import multiprocessing as mp
@@ -37,6 +37,7 @@ import os, datetime, pandas as pd
 import pickle
 import csv, random
 from ..utils.savestuff import *
+from ..agent.prior import Prior
 
 def logrolldf(xtr,ytr,aidx,h,init_samp, mc, rollout=True):
     # df = pd.DataFrame(np.array(data.history, dtype='object'))
@@ -253,7 +254,7 @@ class RolloutEI(InternalBO):
     # Get expected value for each point after rolled out for h steps 
     def get_exp_values(self, agents):
         self.agents = agents
-        # self.root = self.get_pt_reward(6)
+        # self.root = self.get_pt_reward(2)
         self.root = self._evaluate_at_point_list(agents)
         # print("Tree after MC iters get_exp_values: ")
         # print_tree(self.root, MAIN)
@@ -311,9 +312,9 @@ class RolloutEI(InternalBO):
             self.mc = i+1
             # print('agents in mc iter : ', [i.region_support.input_space for i in agents])
             # for ix, a in enumerate(agents):
-            #     print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            #     print('agent xtr ytr in MC of rollout  :',a.simXtrain, a.simYtrain)
-            #     print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
+                # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print('agent xtr ytr in start of MC of rollout  :',a.x_train, a.y_train)
+                # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
             save_node(self.root, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MC_{self.mc}.pkl')
             self.get_h_step_with_part(agents)
             # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/nodes/rl_root_{self.sample}_MCb4_{self.mc}.pkl')
@@ -349,13 +350,16 @@ class RolloutEI(InternalBO):
                 a.resetRegions()
                 a(MAIN)
                 a.resetAgentList(MAIN)
-                print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                print('B4 reset agent xtr ytr in MC of rollout  :',a.simXtrain, a.simYtrain)
-                print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
+                # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                
+                # print('B4 reset agent xtr ytr in MC of rollout  :',a.simXtrain, a.simYtrain)
+                # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
                 a.resetModel()
-                print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                print('after reset agent xtr ytr in MC of rollout  :',a.simXtrain, a.simYtrain)
-                print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
+                # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print('after reset agent xtr ytr in MC of rollout  :',a.x_train, 'ytr : ',a.y_train)
+                # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>> MAIN xtr ytr >>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print('after reset agent xtr ytr in MC of rollout  :',a.simXtrain, 'ytr : ',a.simYtrain)
+                # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
                 assert a.simReg == a.region_support
             
 
@@ -375,6 +379,7 @@ class RolloutEI(InternalBO):
         # print()
         # print(">>>>>>>>>>>>>>>>>>>>>>>> Tree after avg reward update >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         # print_tree(self.root, MAIN)
+        # exit(1)
         # (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MCafter_{self.mc}.pkl')
         return self.root
@@ -450,10 +455,12 @@ class RolloutEI(InternalBO):
                         if a.simReg != reg:
                             commonReg = find_common_parent(rl_root, reg, a.simReg)
                             # print('common parent : ', commonReg.input_space, a.simReg, reg )
+                            # cmPrior = commonReg.rolloutPrior
                             model = commonReg.model #self.gprFromregionPairs(a, reg.agent)
 
                         next_xt = self._opt_acquisition(ytr,model,reg.input_space,self.rng)  # reg.agent.model
                         next_xt = np.asarray([next_xt])
+                        test_next_xt = next_xt
                         # min_xt = next_xt
                         mu, std = self._surrogate(model, next_xt)
                         f_xt = np.random.normal(mu,std,1)
@@ -473,7 +480,7 @@ class RolloutEI(InternalBO):
                         # reg.rewardDist.append((-1 * self.reward(f_xt,ytr)))
                         # reg.rewardDist[ix] += (-1 * self.reward(f_xt,ytr))
                         reg.rewardDist[ix] += reward
-
+                        # assert test_next_xt.all() == next_xt.all()
                         if a.simReg == reg:
                             a.simXtrain = np.vstack((a.simXtrain , next_xt))
                             a.simYtrain = np.hstack((a.simYtrain, f_xt))
@@ -511,13 +518,15 @@ class RolloutEI(InternalBO):
             # agents = reassign(rl_root, ROLLOUT, agents, currentAgentIdx, tmp_gpr, self.x_train, ytr)
             # print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             jump = random.random()
+            dim = np.random.randint(self.tf_dim)
             subregions = reassignUsingRewardDist(rl_root, ROLLOUT, agents, jump)
-            agents = partitionRegions(rl_root, subregions, ROLLOUT)
+            agents = partitionRegions(rl_root, subregions, ROLLOUT, dim)
             # print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             # export_tree_image(rl_root, ROLLOUT, f"results/trees/rollout/rlroot_after_{h}_reassign.png")
             # exportTreeUsingPlotly(rl_root)
-            # for agent in agents:
-                # print(f'b4 splitting obs upadting from parent Rollout: ',agent.id, agent.simXtrain, agent.simYtrain)
+            # for agent in agents:  
+                # print(f'b4 splitting obs upadting from parent Rollout: ',agent.id, agent.x_train, agent.y_train)
+                # print(f'b4 splitting sim obs upadting from parent Rollout: ',agent.id, agent.simXtrain, agent.simYtrain)
             agents = splitObs(agents, self.tf_dim, self.rng, ROLLOUT, self.tf, Behavior.MINIMIZATION)
             
 
@@ -528,7 +537,7 @@ class RolloutEI(InternalBO):
             xt = rl_root.find_leaves() 
             newx_opt = []
             for aidx, agent in enumerate(agents):
-                # print(f'after splitting from parent Rollout: ',agent.id, agent.simXtrain, agent.simYtrain)
+                # print(f'after splitting from parent Rollout: ',agent.id, agent.x_train, agent.y_train)
                 # print('checking pts in rollout')
                 assert check_points(agent, ROLLOUT) == True
                 assert agent.simReg.getStatus(ROLLOUT) == 1
@@ -536,7 +545,7 @@ class RolloutEI(InternalBO):
                 if len(agent.simXtrain) != 0:
                     agent.updatesimModel()
                 else:
-                    actregSamples = uniform_sampling(self.tf_dim*10 , agent.simReg.input_space, self.tf_dim, self.rng)  #self.tf_dim*10
+                    actregSamples = lhs_sampling(self.tf_dim*10 , agent.simReg.input_space, self.tf_dim, self.rng)  #self.tf_dim*10
                     mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
                     actY = []
                     for i in range(len(actregSamples)):
@@ -547,6 +556,9 @@ class RolloutEI(InternalBO):
                     agent.simXtrain = np.vstack((agent.simXtrain , actregSamples))
                     agent.simYtrain = np.hstack((agent.simYtrain, actY))
                     agent.updatesimModel()
+                
+                # simPrior = Prior(agent.simXtrain, agent.simYtrain, agent.simModel, ROLLOUT)
+                agent.simReg.addFootprint(agent.simXtrain, agent.simYtrain, agent.simModel)
                 agent.simReg.model = deepcopy(agent.simModel)
                 # smp = sample_from_discontinuous_region(10*self.tf_dim, [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 # print('a.simReg.rewardDist: ',self.mc, a.id, a.simReg.rewardDist[a.id])
@@ -555,15 +567,16 @@ class RolloutEI(InternalBO):
             #     next_xt = np.asarray([next_xt])
             #     mu, std = self._surrogate(agent.simModel, next_xt)
             #     f_xt = np.random.normal(mu,std,1)
-                # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                # print('agent xtr ytr in rollout  :',agent.simXtrain, agent.simYtrain)
+                # print(">>>>>>>>>>>>>>>>>>>>>>>>>>> inside end of horizon  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                # print('agent xtr ytr in rollout  :',agent.id, agent.x_train, agent.y_train)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
             #     globxtr = np.vstack((globxtr , next_xt))
             #     globytr = np.hstack((globytr, f_xt))
             # tmp_gpr.fit(globxtr, globytr)
                 # logrolldf(agent.simXtrain, agent.simYtrain, aidx, h,20, self.mc)
             save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_{currentAgentIdx}.pkl')
-            # exit(1)
+            # if h < 3:
+            #     exit(1)
             h -= 1
             if h <= 0 :
                 break

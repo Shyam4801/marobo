@@ -4,3 +4,4 @@ END = '\033[0m'
 
 ROLLOUT = 0
 MAIN = 1
+ACTUAL = 2

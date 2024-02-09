@@ -388,14 +388,14 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         # a.updateBounds(subregs[minsubregIdx[idx]], routine)
         # a(routine)
 
-def partitionRegions(root, subregions, routine):
+def partitionRegions(root, subregions, routine, dim):
     # print('===================================================')
     # print('================= Paritioning =================')
     for subr in subregions:
         if subr.getnumAgents(routine) > 1:
             subr.updateStatus(0, routine)
             internal_factorized = find_prime_factors(subr.getnumAgents(routine))
-            ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, np.random.randint(len(subr.input_space)))
+            ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
             subr.add_child(ch)
             assert len(ch) == subr.getnumAgents(routine)
 
@@ -445,10 +445,10 @@ def partitionRegions(root, subregions, routine):
             # print('--------------------------------------')
             assert len(newsub.getAgentList(routine)) == 1
             newAgents.append(newsub.getAgentList(routine)[0])
-            if routine == ROLLOUT:
-                # newsub.addFootprint(newsub.agent.x_train, newsub.agent.y_train, newsub.agent.model)
+            # if routine == MAIN:
+            #     newsub.addFootprint(newsub.agent.x_train, newsub.agent.y_train, newsub.agent.model)
             # else:
-                newsub.addFootprint(newsub.agent.simXtrain, newsub.agent.simYtrain, newsub.agent.simModel)
+            #     newsub.addFootprint(newsub.agent.simXtrain, newsub.agent.simYtrain, newsub.agent.simModel)
         # if routine == MAIN:
             # print('new subr : ', newsub.input_space, 'agent : ', newsub.agent.id)
 
@@ -584,25 +584,39 @@ def splitObs(agents, tf_dim, rng, routine, tf, behavior):
         
         for a in agents:
             if routine == MAIN:
-                print('agent id: ',a.id)
+                print()
+                print('INSIDE MAIN agent id: ',a.id)
+                print()
+                print('^'*100)
                 filtered_points, filtered_values = filter_points_in_region(a.x_train, a.y_train, a.region_support.input_space)
-                # xtr = a.x_train
-                # ytr = a.y_train
-                # reg = a.region_support.input_space
-            # else:
-            #     xtr = a.simXtrain
-            #     ytr = a.simYtrain
-            #     reg = a.simReg.input_space
+
+                a.x_train = filtered_points
+                a.y_train = filtered_values
+            
+                # if len(filtered_points) == 0:
+                #     print('reg and filtered pts len :',  a.region_support.input_space, a.id)
+
+                # x_train = uniform_sampling( 1, a.region_support.input_space, tf_dim, rng)
+                # y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+            
+                # a.x_train = np.vstack((filtered_points, x_train))
+                # a.y_train = np.hstack((filtered_values, y_train))
+
+                # a.updateModel()
+            
+            elif routine == ACTUAL:
+                print('agent id: actual',a.id)
+                filtered_points, filtered_values = filter_points_in_region(a.ActualXtrain, a.ActualYtrain, a.region_support.input_space)
 
             
                 if len(filtered_points) == 0:
-                    print('reg and filtered pts len :',  a.region_support.input_space, a.id)
+                    print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
                 x_train = uniform_sampling( 1, a.region_support.input_space, tf_dim, rng)
                 y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
             
-                a.x_train = np.vstack((filtered_points, x_train))
-                a.y_train = np.hstack((filtered_values, y_train))
+                a.ActualXtrain = np.vstack((filtered_points, x_train))
+                a.ActualYtrain = np.hstack((filtered_values, y_train))
 
                 a.updateModel()
             else:
@@ -667,14 +681,17 @@ def check_points(agent, routine):
 # print_tree(n, MAIN)
 # print_tree(m, MAIN)
 
-# reg = np.array([[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]])
+# reg = np.array([[0,1],[0,1],[0,1]]) #,[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]])
 # n = Node(reg,1)
-# a = 6
+# a = 4
+# dim = 0 #np.random.randint(len(reg))
 # factorized = find_prime_factors(a) #sorted(find_close_factor_pairs(a), reverse=True)
-# print(factorized, 'np.random.randint(len(reg)): ',np.random.randint(len(reg)))
-# ch = get_subregion(deepcopy(n), a,factorized, np.random.randint(len(reg)))
+# print(factorized, 'np.random.randint(len(reg)): ',dim)
+# ch = get_subregion(deepcopy(n), a,factorized, dim)
 # print(len(ch))
 # n.add_child(ch)
+
+# print_tree(n, MAIN)
 
 # print('[i.getVolume() for i in ch]: ',[{str(i.input_space ): i.getVolume()} for i in ch])
 

@@ -26,6 +26,8 @@ class Node:
         self.xtr = None
         self.ytr = None
         self.model = None
+        self.rolloutPrior = None 
+        self.mainPrior = None
 
     def __call__(self):
         if self.agent != None:
@@ -33,7 +35,14 @@ class Node:
         else:
             self.agentList = []
 
+    def testaddFootprint(self, prior, routine): #xtr , ytr, model):
+        if routine == MAIN:
+             self.mainPrior = prior
+        else:
+             self.rolloutPrior = prior
+
     def addFootprint(self, xtr , ytr, model):
+        # if routine == MAIN:
         self.xtr = deepcopy(xtr)
         self.ytr = deepcopy(ytr)
         self.model = deepcopy(model)
