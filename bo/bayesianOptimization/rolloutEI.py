@@ -128,7 +128,7 @@ class RolloutEI(InternalBO):
         lf = self.root.find_leaves()
         xtr = deepcopy(x_train)
         ytr = deepcopy(y_train)
-        agents = agents
+        agents = []
         # assert len(a.region_support.agentList) == 1
         for lv in lf:
             lv.resetavgRewardDist(num_agents)
@@ -140,11 +140,12 @@ class RolloutEI(InternalBO):
         #     all(element.all() == 0 for element in lv.rewardDist)
         # for l in lf:
         #     l.setRoutine(MAIN)
-        #     if l.getStatus(MAIN) == 1:
-        #         ag = Agent(gpr_model, xtr, ytr, l)
-        #         ag(MAIN)
-        #         agents.append(ag)
-        
+            if lv.getStatus(MAIN) == 1:
+                # ag = Agent(gpr_model, xtr, ytr, l)
+                # ag(MAIN)
+                agents.append(lv.agent)
+        agents = sorted(agents, key=lambda x: x.id)
+        print('agents in rollout EI start : ', agents)
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
 
         self.num_agents = num_agents

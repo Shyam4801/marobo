@@ -3,7 +3,7 @@ from copy import deepcopy
 from .constants import *
 import numpy as np
 from .partition import Node
-from bo.sampling import uniform_sampling
+from bo.sampling import uniform_sampling, lhs_sampling
 from bo.utils import compute_robustness
 
 def split_region(root,dim,num_agents):
@@ -584,10 +584,10 @@ def splitObs(agents, tf_dim, rng, routine, tf, behavior):
         
         for a in agents:
             if routine == MAIN:
-                print()
-                print('INSIDE MAIN agent id: ',a.id)
-                print()
-                print('^'*100)
+                # print()
+                # print('INSIDE MAIN agent id: ',a.id)
+                # print()
+                # print('^'*100)
                 filtered_points, filtered_values = filter_points_in_region(a.x_train, a.y_train, a.region_support.input_space)
 
                 a.x_train = filtered_points
@@ -650,6 +650,92 @@ def check_points(agent, routine):
 
     res = point_in_region(xtr, reg)
     return res
+
+
+def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+        avgrewards = np.zeros((1,num_agents,num_agents))
+        agentModels = []
+        xroots = []
+
+        # for regsamples in range(configSamples):
+                
+        print("total comb of roots with assign and dim: ",len(roots))
+        # print()
+        # print([obj.__dict__ for obj in roots])
+        # print()
+        for Xs_root in roots:
+            # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
+            # rtPrior = Prior(x_train, y_train, model, MAIN)
+            # Xs_root.addFootprint(rtPrior, MAIN)
+            # _,_, model = Xs_root.mainPrior.getData(MAIN)
+            # Xs_root.model = deepcopy(model)
+
+            agents = []
+            # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
+            for id, l in enumerate(Xs_root.find_leaves()):
+                l.setRoutine(MAIN)
+                if l.getStatus(MAIN) == 1:
+                    # if sample != 0:
+                    xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                    # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+
+                    ag = l.agent
+                    ag.x_train = np.vstack((ag.x_train, xtr))
+                    ag.y_train = np.hstack((ag.y_train, ytr))
+                    # ag = Agent(id, None, xtr, ytr, l)
+                    # ag.updateModel()
+                    ag(MAIN)
+                    agents.append(ag)
+            
+            agents = sorted(agents, key=lambda x: x.id)
+            agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
+            for a in agents:
+                # if len(a.x_train) == 0:
+                #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
+
+                #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
+                #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
+                
+                #     a.x_train = np.vstack((a.x_train, x_train))
+                #     a.y_train = np.hstack((a.y_train, y_train))
+
+                #     a.updateModel()
+                assert check_points(a, MAIN) == True
+                a.resetModel()
+                a.updateModel()
+                a.region_support.addFootprint(ag.x_train, ag.y_train, ag.model)
+                assert check_points(a, ROLLOUT) == True
+                # print(f'agent xtr rollout BO sample {regsamples}', a.x_train, a.y_train, a.id, a.region_support.input_space)
+
+            # print(f'_________________  ____________________')
+            # model = GPR(gpr_model)
+            # model.fit(globalXtrain, globalYtrain)
+            agentModels.append(agents)
+            xroots.append(Xs_root)
+
+        return xroots, agentModels
+
+
+def initAgents(globmodel, region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
+        if init_sampling_type == "lhs_sampling":
+            x_train = lhs_sampling(init_budget, region_support, tf_dim, rng)
+        elif init_sampling_type == "uniform_sampling":
+            x_train = uniform_sampling(init_budget, region_support, tf_dim, rng)
+        else:
+            raise ValueError(f"{init_sampling_type} not defined. Currently only Latin Hypercube Sampling and Uniform Sampling is supported.")
+        
+        y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=store)
+        # if not falsified:
+        #     print("No falsification in Initial Samples. Performing BO now")
+        # ei = RolloutEI()
+        # mu, std = ei._surrogate(globmodel, x_train)  #agent.simModel
+        # actY = []
+        # for i in range(len(x_train)):
+        #     f_xt = np.random.normal(mu[i],std[i],1)
+        #     actY.append(f_xt)
+        # actY = np.hstack((actY))
+
+        return x_train , y_train #actY
 
 # n = Node(1,1)
 # n.reward = 1

@@ -196,116 +196,125 @@ class RolloutBO(BO_Interface):
             print('_____________________________________')
             model = GPR(gpr_model)
             model.fit(globalXtrain, globalYtrain)
+            X_root.model = deepcopy(model)
             
             avgrewards = np.zeros((1,num_agents,num_agents))
-            agentModels = []
-            xroots = []
+            # agentModels = []
+            # xroots = []
             
             roots = self.getRootConfigs(X_root, model, sample, num_agents, tf_dim, agentsWithminSmps)
-            for regsamples in range(10):
+            xroots, agentModels = self.genSamplesForConfigsinParallel(2, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            xroots  = np.hstack((xroots))
+            agentModels  = np.hstack((agentModels))
+
+            print('xroots : ', xroots)
+            # exit(1)
+            # for regsamples in range(2):
                 
-                print("total comb of roots with assign and dim: ",len(roots))
-                print()
-                # print([obj.__dict__ for obj in roots])
-                print()
-                for Xs_root in roots:
-                    # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
-                    # rtPrior = Prior(x_train, y_train, model, MAIN)
-                    # Xs_root.addFootprint(rtPrior, MAIN)
-                    # _,_, model = Xs_root.mainPrior.getData(MAIN)
-                    Xs_root.model = deepcopy(model)
+            #     print("total comb of roots with assign and dim: ",len(roots))
+            #     print()
+            #     # print([obj.__dict__ for obj in roots])
+            #     print()
+            #     for Xs_root in roots:
+            #         # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
+            #         # rtPrior = Prior(x_train, y_train, model, MAIN)
+            #         # Xs_root.addFootprint(rtPrior, MAIN)
+            #         # _,_, model = Xs_root.mainPrior.getData(MAIN)
+            #         Xs_root.model = deepcopy(model)
 
-                    agents = []
-                    # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-                    for id, l in enumerate(Xs_root.find_leaves()):
-                        l.setRoutine(MAIN)
-                        if l.getStatus(MAIN) == 1:
-                            # if sample != 0:
-                            xtr, ytr = self.initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-                            # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+            #         agents = []
+            #         # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
+            #         for id, l in enumerate(Xs_root.find_leaves()):
+            #             l.setRoutine(MAIN)
+            #             if l.getStatus(MAIN) == 1:
+            #                 # if sample != 0:
+            #                 xtr, ytr = self.initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
+            #                 # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
 
-                            ag = l.agent
-                            ag.x_train = np.vstack((ag.x_train, xtr))
-                            ag.y_train = np.hstack((ag.y_train, ytr))
-                            # ag = Agent(id, None, xtr, ytr, l)
-                            # ag.updateModel()
-                            ag(MAIN)
-                            agents.append(ag)
+            #                 ag = l.agent
+            #                 ag.x_train = np.vstack((ag.x_train, xtr))
+            #                 ag.y_train = np.hstack((ag.y_train, ytr))
+            #                 # ag = Agent(id, None, xtr, ytr, l)
+            #                 # ag.updateModel()
+            #                 ag(MAIN)
+            #                 agents.append(ag)
                     
-                    agents = sorted(agents, key=lambda x: x.id)
-                    agents = splitObs(agents, tf_dim, rng, MAIN, self.tf, self.behavior)
-                    for a in agents:
-                        # if len(a.x_train) == 0:
-                        #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
+            #         agents = sorted(agents, key=lambda x: x.id)
+            #         agents = splitObs(agents, tf_dim, rng, MAIN, self.tf, self.behavior)
+            #         for a in agents:
+            #             # if len(a.x_train) == 0:
+            #             #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
-                        #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
-                        #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
+            #             #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
+            #             #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
                         
-                        #     a.x_train = np.vstack((a.x_train, x_train))
-                        #     a.y_train = np.hstack((a.y_train, y_train))
+            #             #     a.x_train = np.vstack((a.x_train, x_train))
+            #             #     a.y_train = np.hstack((a.y_train, y_train))
 
-                        #     a.updateModel()
-                        assert check_points(a, MAIN) == True
-                        a.resetModel()
-                        a.updateModel()
-                        a.region_support.addFootprint(ag.x_train, ag.y_train, ag.model)
-                        assert check_points(a, ROLLOUT) == True
-                        print(f'agent xtr rollout BO sample {regsamples}', a.x_train, a.y_train, a.id, a.region_support.input_space)
+            #             #     a.updateModel()
+            #             assert check_points(a, MAIN) == True
+            #             a.resetModel()
+            #             a.updateModel()
+            #             a.region_support.addFootprint(ag.x_train, ag.y_train, ag.model)
+            #             assert check_points(a, ROLLOUT) == True
+            #             # print(f'agent xtr rollout BO sample {regsamples}', a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                    print('_____________________________________')
-                    # model = GPR(gpr_model)
-                    # model.fit(globalXtrain, globalYtrain)
-                    agentModels.append(agents)
-                    xroots.append(Xs_root)
+            #         print('_____________________________________')
+            #         # model = GPR(gpr_model)
+            #         # model.fit(globalXtrain, globalYtrain)
+            #         agentModels.append(agents)
+            #         xroots.append(Xs_root)
                     
-                # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
-                print('xroots and agents b4 joblib : ', len(xroots), len(agentModels))
-                Xs_roots = self.evalConfigs(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
-                print("Xs_root from joblib ",len(Xs_roots))
-                for x in Xs_roots:
-                    print_tree(x[1], MAIN)
-                    agents = x[2]
-                    # exit(1)
-                    # for smp in range(samples):
-                        # self.smp = smp
-                    avgAgentrewards = np.zeros((1,num_agents))
-                    # self.root = self._evaluate_at_point_list(agents)
-                    agents = sorted(agents, key=lambda x: x.id)
-                    for a in agents:
-                        print('aid inside reward acc: ', a.id)
-                        # avgAgentrewards.append(a.region_support.avgRewardDist)
-                        avgAgentrewards = np.vstack((avgAgentrewards, a.region_support.avgRewardDist.reshape((1,num_agents))))
-                        # print(avgAgentrewards.shape)
-                        # a.appendevalReward(avgAgentrewards[a.id][a.id])
-                        # print('a.pointsToeval[:smp]: ',a.pointsToeval[:smp+1], a.pointsToeval[:smp+1].shape )
-                        # a.x_train = np.vstack((a.x_train, a.pointsToeval[:smp+1]))
-                        # a.y_train = np.hstack((a.y_train, np.array(a.evalRewards[:smp+1])))
-                        # a.updateModel()
-                        # a.resetModel()
-                        # print('aid xtrain ,ytrain: ',a.id, a.x_train, a.y_train)
-                        # print('a.pointsToeval[:smp+1]: ',a.id , a.pointsToeval[:smp+1], a.evalRewards[:smp+1])
+            # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            print('xroots and agents b4 joblib : ', len(xroots), len(agentModels))
+            Xs_roots = self.evalConfigs(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            print("Xs_root from joblib ",len(Xs_roots))
+            # exit(1)
 
-                    # print(avgAgentrewards, avgAgentrewards.shape)
-                    avgrewards = np.vstack((avgrewards, avgAgentrewards[1:].reshape((1,num_agents,num_agents))))
-                    # agentModels.append(agents)
-                    # xroots.append(Xs_root)
+            for x in Xs_roots:
+                print_tree(x[1], MAIN)
+                agents = x[2]
+                # exit(1)
+                # for smp in range(samples):
+                    # self.smp = smp
+                avgAgentrewards = np.zeros((1,num_agents))
+                # self.root = self._evaluate_at_point_list(agents)
+                agents = sorted(agents, key=lambda x: x.id)
+                for a in agents:
+                    print('aid inside reward acc: ', a.id)
+                    # avgAgentrewards.append(a.region_support.avgRewardDist)
+                    avgAgentrewards = np.vstack((avgAgentrewards, a.region_support.avgRewardDist.reshape((1,num_agents))))
+                    # print(avgAgentrewards.shape)
+                    # a.appendevalReward(avgAgentrewards[a.id][a.id])
+                    # print('a.pointsToeval[:smp]: ',a.pointsToeval[:smp+1], a.pointsToeval[:smp+1].shape )
+                    # a.x_train = np.vstack((a.x_train, a.pointsToeval[:smp+1]))
+                    # a.y_train = np.hstack((a.y_train, np.array(a.evalRewards[:smp+1])))
+                    # a.updateModel()
+                    # a.resetModel()
+                    # print('aid xtrain ,ytrain: ',a.id, a.x_train, a.y_train)
+                    # print('a.pointsToeval[:smp+1]: ',a.id , a.pointsToeval[:smp+1], a.evalRewards[:smp+1])
 
-                # X_root = deepcopy(Xs_root)
-                    
-                avgrewards = avgrewards[1:]
-                print('avgrewards: ',avgrewards)
-                # avgrewards = np.hstack((avgrewards))
-                # minrewardDist, minrewardDistIdx = min_diagonal(avgrewards)
-                mincumRewardIdx = find_min_diagonal_sum_matrix(avgrewards)
-                print('mincumRewardIdx: ', mincumRewardIdx)
-                # exit(1)
-                # print('minrewardDist, minrewardDistIdx: ',minrewardDist, minrewardDistIdx, minrewardDist.shape, minrewardDistIdx.shape)
-                # minregtojump = np.argmin(minrewardDist[:len(agents)], axis=0)
-                # print('minregtojump: ',minregtojump)
-                # exit(1)
-                # print('b4 reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
-                # agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
-                # mainAgents = sorted(mainAgents, key=lambda x: x.id)
+                # print(avgAgentrewards, avgAgentrewards.shape)
+                avgrewards = np.vstack((avgrewards, avgAgentrewards[1:].reshape((1,num_agents,num_agents))))
+                # agentModels.append(agents)
+                # xroots.append(Xs_root)
+
+            # X_root = deepcopy(Xs_root)
+                
+            avgrewards = avgrewards[1:]
+            print('avgrewards: ',avgrewards)
+            # avgrewards = np.hstack((avgrewards))
+            # minrewardDist, minrewardDistIdx = min_diagonal(avgrewards)
+            mincumRewardIdx = find_min_diagonal_sum_matrix(avgrewards)
+            print('mincumRewardIdx: ', mincumRewardIdx)
+            # exit(1)
+            # print('minrewardDist, minrewardDistIdx: ',minrewardDist, minrewardDistIdx, minrewardDist.shape, minrewardDistIdx.shape)
+            # minregtojump = np.argmin(minrewardDist[:len(agents)], axis=0)
+            # print('minregtojump: ',minregtojump)
+            # exit(1)
+            # print('b4 reassign MAIN [i.region_support for i in agents]: ',[i.region_support.input_space for i in agents])
+            # agents = reassign(root, MAIN, agents, currentAgentIdx, gpr_model, xtr, ytr)
+            # mainAgents = sorted(mainAgents, key=lambda x: x.id)
 
             agentsWithminSmps = Xs_roots[mincumRewardIdx][2] #agentModels[mincumRewardIdx] #self.get_nextXY(agentModels, minrewardDistIdx)
             print('agentsWithminSmps: ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
@@ -552,57 +561,34 @@ class RolloutBO(BO_Interface):
 
         return moreRoots
 
-
-    def evalConfigsinParallel(self, roots):
-        serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
-        # print('serial_mc_iters using job lib',serial_mc_iters)
-        results = Parallel(n_jobs= -1, backend="loky")\
-            (delayed(unwrap_self)(i) for i in roots) #zip([self]*len(serial_mc_iters), serial_mc_iters))
-        
-        return results
-        
-    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #     self.ei_roll = RolloutEI()
-
-    #     _, Xs_root, agents = self.ei_roll.sample(sample, Xs_root, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng) #self._opt_acquisition(agent.y_train, agent.model, agent.region_support, rng) 
-    #     # print(f'End of agents reg sample {regsamples}')
-    #     print('agent regions: ',[i.region_support.input_space for i in agents])
-
-    #     return Xs_root
-
-    def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
 
         # Define a helper function to be executed in parallel
+        def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+            return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+
+        # Execute the evaluation function in parallel for each Xs_root item
+        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng) for csmp in tqdm(range(configSamples)))
+        
+        roots = [results[i][0] for i in range(configSamples)]
+        agents = [results[i][1] for i in range(configSamples)]
+
+        return roots , agents
+    
+
+    def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        self.ei_roll = RolloutEI()
+        # print('inside evalConfigs')
+        # Define a helper function to be executed in parallel
         def evaluate_in_parallel(Xs_root_item, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+            # print('Xs_root_item in eval config : ',Xs_root_item)
             return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, agent, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item, agent) in zip(Xs_root, agents))
+        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, agent, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item, agent) in tqdm(zip(Xs_root, agents)))
 
         return results
-
-
-    def initAgents(self, globmodel, region_support, init_sampling_type, init_budget, tf_dim, rng, store):
-        if init_sampling_type == "lhs_sampling":
-            x_train = lhs_sampling(init_budget, region_support, tf_dim, rng)
-        elif init_sampling_type == "uniform_sampling":
-            x_train = uniform_sampling(init_budget, region_support, tf_dim, rng)
-        else:
-            raise ValueError(f"{init_sampling_type} not defined. Currently only Latin Hypercube Sampling and Uniform Sampling is supported.")
-        
-        y_train, falsified = compute_robustness(x_train, self.tf, self.behavior, agent_sample=store)
-        if not falsified:
-            print("No falsification in Initial Samples. Performing BO now")
-        # ei = RolloutEI()
-        # mu, std = ei._surrogate(globmodel, x_train)  #agent.simModel
-        # actY = []
-        # for i in range(len(x_train)):
-        #     f_xt = np.random.normal(mu[i],std[i],1)
-        #     actY.append(f_xt)
-        # actY = np.hstack((actY))
-
-        return x_train , y_train #actY
     
 
     def get_nextXY(self, agentmodels, minRewardIdx): #, rng, test_function, behavior):
