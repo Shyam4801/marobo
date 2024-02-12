@@ -323,7 +323,7 @@ class RolloutEI(InternalBO):
                 # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 # print('agent xtr ytr in start of MC of rollout  :',a.x_train, a.y_train)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
-            save_node(self.root, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MC_{self.mc}.pkl')
+            # save_node(self.root, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MC_{self.mc}.pkl')
             self.get_h_step_with_part(agents)
             # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/nodes/rl_root_{self.sample}_MCb4_{self.mc}.pkl')
             # export_tree_image(self.root, ROLLOUT, f"results/trees/rollout/MCtree_after_{i}_reassign.png")
@@ -389,7 +389,7 @@ class RolloutEI(InternalBO):
         # print_tree(self.root, MAIN)
         # exit(1)
         # (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MCafter_{self.mc}.pkl')
+        # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MCafter_{self.mc}.pkl')
         return self.root
            
     
@@ -473,7 +473,7 @@ class RolloutEI(InternalBO):
                             if model == None:
                                 print(' No common model b/w !', a.simReg.input_space, reg.input_space)
                                 print('h: ', h)
-                                save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+'/node_with_no_common_model.pkl')
+                                # save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+'/node_with_no_common_model.pkl')
                                 exit(1)
 
                         next_xt = self._opt_acquisition(ytr,model,reg.input_space,self.rng)  # reg.agent.model
@@ -592,7 +592,7 @@ class RolloutEI(InternalBO):
             #     globytr = np.hstack((globytr, f_xt))
             # tmp_gpr.fit(globxtr, globytr)
                 # logrolldf(agent.simXtrain, agent.simYtrain, aidx, h,20, self.mc)
-            save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_{currentAgentIdx}.pkl')
+            # save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_{currentAgentIdx}.pkl')
             # if h < 3:
             #     exit(1)
             h -= 1
