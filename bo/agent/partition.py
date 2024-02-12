@@ -110,6 +110,7 @@ class Node:
     def addAgentList(self, agent, routine):
         # if routine == MAIN:
             self.agentList.append(agent) 
+            self.agentList = list(set(self.agentList))
         # else:
         #     self.agentListTrace.append(agent)
     

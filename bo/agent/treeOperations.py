@@ -5,6 +5,7 @@ import numpy as np
 from .partition import Node
 from bo.sampling import uniform_sampling, lhs_sampling
 from bo.utils import compute_robustness
+from itertools import permutations
 
 def split_region(root,dim,num_agents):
     # print('split_region: dim',dim, num_agents)
@@ -51,11 +52,14 @@ def print_tree(node, routine, level=0, prefix=''):
         color = RED
     if node is None:
         return
+    id = -1
+    if node.agent != None:
+        id = node.agent.id
 
     for i, child in enumerate(node.child):
         print_tree(child, routine, level + 1, '|   ' + prefix if i < len(node.child) - 1 else '    ' + prefix)
     
-    print('    ' * level + prefix + f'-- {color}{node.input_space.flatten()}{reward}{END}')
+    print('    ' * level + prefix + f'-- {color}{node.input_space.flatten()}{reward}{id}{END}')
 
 # def find_close_factor_pairs(number):
 #     factors = np.arange(1, int(np.sqrt(number)) + 1)
@@ -376,7 +380,8 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         # if routine == MAIN:
         # print('--------------------------------------')
         # print(subregs[minsubregIdx[idx]].input_space)
-        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList), subregs[minsubregIdx[idx]].getnumAgents(routine))
+        # print_tree(root, ROLLOUT)
+        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList),[(a, a.id) for a in subregs[minsubregIdx[idx]].agentList],  subregs[minsubregIdx[idx]].getnumAgents(routine))
         assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
     # print('num agents : ',[i.getnumAgents(routine) for i in subregs])
     # print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
@@ -651,6 +656,19 @@ def check_points(agent, routine):
     res = point_in_region(xtr, reg)
     return res
 
+def find_parent(root, target):
+    # Stack for DFS traversal
+    stack = [(root, [])]
+
+    while stack:
+        node, path = stack.pop()
+        if node == target:
+            # If the target node is found, return the last node in the path
+            return path[-1] if path else None
+        for child in node.child:
+            stack.append((child, path + [node]))
+
+    return None
 
 def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         avgrewards = np.zeros((1,num_agents,num_agents))
@@ -663,60 +681,97 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
         # print()
         # print([obj.__dict__ for obj in roots])
         # print()
-        for Xs_root in roots:
-            # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
-            # rtPrior = Prior(x_train, y_train, model, MAIN)
-            # Xs_root.addFootprint(rtPrior, MAIN)
-            # _,_, model = Xs_root.mainPrior.getData(MAIN)
-            # Xs_root.model = deepcopy(model)
+        permutations_list = list(permutations(range(num_agents)))
+        permutations_list = permutations_list[:5]
+        for perm in range(len(permutations_list)):
+            for Xs_root in roots:
+                # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
+                # rtPrior = Prior(x_train, y_train, model, MAIN)
+                # Xs_root.addFootprint(rtPrior, MAIN)
+                # _,_, model = Xs_root.mainPrior.getData(MAIN)
+                # Xs_root.model = deepcopy(model)
+                # state = np.random.get_state()
 
-            agents = []
-            # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-            for id, l in enumerate(Xs_root.find_leaves()):
-                l.setRoutine(MAIN)
-                if l.getStatus(MAIN) == 1:
-                    # if sample != 0:
-                    xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
-                    # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
-
-                    ag = l.agent
-                    ag.x_train = np.vstack((ag.x_train, xtr))
-                    ag.y_train = np.hstack((ag.y_train, ytr))
-                    # ag = Agent(id, None, xtr, ytr, l)
-                    # ag.updateModel()
-                    ag(MAIN)
-                    agents.append(ag)
-            
-            agents = sorted(agents, key=lambda x: x.id)
-            agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
-            for a in agents:
-                # if len(a.x_train) == 0:
-                #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
-
-                #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
-                #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
+                # # Print the seed value
+                # print("Seed value:", state[1][0])
+                agents = []
+                # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
+                nid = 0
+                for id, l in enumerate(Xs_root.find_leaves()):
+                    l.setRoutine(MAIN)
+                    nid = nid % num_agents
+                    if l.getStatus(MAIN) == 1:
+                        # if l.agent.model == None:
+                        #     parent = find_parent(Xs_root, l)
+                        #     model = parent.model
+                        # else:
+                        #     model = l.agent.model
+                        
+                        xtr, ytr = initAgents(l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                        # print(idx, id,i, len(permutations_list))
+                        # mainag = Agent(permutations_list[perm][nid], None, xtr, ytr, l)
+                        # mainag(MAIN)
+                        mainag = l.agent
+                        l.addAgentList(mainag, MAIN)
+                        mainag.x_train = xtr #np.vstack((ag.x_train, xtr))
+                        mainag.y_train = ytr
+                        mainag.id = permutations_list[perm][nid]
+                        
+                        nid += 1
+                        agents.append(mainag)
+                # moreRoots.append(deepcopy(rt))
                 
-                #     a.x_train = np.vstack((a.x_train, x_train))
-                #     a.y_train = np.hstack((a.y_train, y_train))
+                    # l.setRoutine(MAIN)
+                    # if l.getStatus(MAIN) == 1:
+                    #     # if sample != 0:
+                    #     xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                    #     # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
 
-                #     a.updateModel()
-                assert check_points(a, MAIN) == True
-                a.resetModel()
-                a.updateModel()
-                a.region_support.addFootprint(ag.x_train, ag.y_train, ag.model)
-                assert check_points(a, ROLLOUT) == True
-                # print(f'agent xtr rollout BO sample {regsamples}', a.x_train, a.y_train, a.id, a.region_support.input_space)
+                    #     ag = l.agent
+                    #     ag.x_train = xtr #np.vstack((ag.x_train, xtr))
+                    #     ag.y_train = ytr #np.hstack((ag.y_train, ytr))
+                    #     # ag = Agent(id, None, xtr, ytr, l)
+                    #     # ag.updateModel()
+                    #     ag(MAIN)
+                    #     agents.append(ag)
+                
+                agents = sorted(agents, key=lambda x: x.id)
+                agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
+                for a in agents:
+                    # if sample == 0:
+                    #     a.ActualXtrain == 
+                    # if len(a.x_train) == 0:
+                    #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
-            # print(f'_________________  ____________________')
-            # model = GPR(gpr_model)
-            # model.fit(globalXtrain, globalYtrain)
-            agentModels.append(agents)
-            xroots.append(Xs_root)
+                    #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
+                    #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
+                    
+                    #     a.x_train = np.vstack((a.x_train, x_train))
+                    #     a.y_train = np.hstack((a.y_train, y_train))
+
+                    #     a.updateModel()
+                    assert check_points(a, MAIN) == True
+                    a.resetModel()
+                    a.updateModel()
+                    a.region_support.addFootprint(a.x_train, a.y_train, a.model)
+                    assert check_points(a, ROLLOUT) == True
+                    # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
+                
+
+                # print(f'_________________  ____________________')
+                # model = GPR(gpr_model)
+                # model.fit(globalXtrain, globalYtrain)
+                agentModels.append(deepcopy(agents))
+                xroots.append(deepcopy(Xs_root))
 
         return xroots, agentModels
 
 
-def initAgents(globmodel, region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
+def initAgents(region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
+        # state = np.random.get_state()
+
+        # # Print the seed value
+        # print("Seed value:", state[1][0])
         if init_sampling_type == "lhs_sampling":
             x_train = lhs_sampling(init_budget, region_support, tf_dim, rng)
         elif init_sampling_type == "uniform_sampling":

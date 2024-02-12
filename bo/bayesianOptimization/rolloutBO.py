@@ -30,6 +30,7 @@ from itertools import permutations
 import multiprocessing as mp
 from multiprocessing import Pool
 from joblib import Parallel, delayed
+from ..utils.plotlyExport import exportTreeUsingPlotly
 
 
 with open('config.yml', 'r') as file:
@@ -197,82 +198,39 @@ class RolloutBO(BO_Interface):
             model = GPR(gpr_model)
             model.fit(globalXtrain, globalYtrain)
             X_root.model = deepcopy(model)
+
+            # exportTreeUsingPlotly(X_root, MAIN)
             
             avgrewards = np.zeros((1,num_agents,num_agents))
             # agentModels = []
             # xroots = []
             
             roots = self.getRootConfigs(X_root, model, sample, num_agents, tf_dim, agentsWithminSmps)
-            xroots, agentModels = self.genSamplesForConfigsinParallel(2, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            xroots, agentModels = self.genSamplesForConfigsinParallel(10, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
 
-            print('xroots : ', xroots)
+            # print('xroots : ', xroots)
+            # for i in xroots:
+            #     print_tree(i, MAIN)
+            #     for id, l in enumerate(i.find_leaves()):
+            #         # l.setRoutine(MAIN)
+            #         if l.getStatus(MAIN) == 1:
+            #             a = l.agent
+            #             print(f'agent xtr config sample', i, a.x_train, a.y_train, a.id, a.region_support.input_space)
+            #             # print('agent dict : ', a.__dict__)
+            #             # print('rregion dict : ', l.__dict__)
             # exit(1)
-            # for regsamples in range(2):
-                
-            #     print("total comb of roots with assign and dim: ",len(roots))
-            #     print()
-            #     # print([obj.__dict__ for obj in roots])
-            #     print()
-            #     for Xs_root in roots:
-            #         # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
-            #         # rtPrior = Prior(x_train, y_train, model, MAIN)
-            #         # Xs_root.addFootprint(rtPrior, MAIN)
-            #         # _,_, model = Xs_root.mainPrior.getData(MAIN)
-            #         Xs_root.model = deepcopy(model)
-
-            #         agents = []
-            #         # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-            #         for id, l in enumerate(Xs_root.find_leaves()):
-            #             l.setRoutine(MAIN)
-            #             if l.getStatus(MAIN) == 1:
-            #                 # if sample != 0:
-            #                 xtr, ytr = self.initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-            #                 # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
-
-            #                 ag = l.agent
-            #                 ag.x_train = np.vstack((ag.x_train, xtr))
-            #                 ag.y_train = np.hstack((ag.y_train, ytr))
-            #                 # ag = Agent(id, None, xtr, ytr, l)
-            #                 # ag.updateModel()
-            #                 ag(MAIN)
-            #                 agents.append(ag)
-                    
-            #         agents = sorted(agents, key=lambda x: x.id)
-            #         agents = splitObs(agents, tf_dim, rng, MAIN, self.tf, self.behavior)
-            #         for a in agents:
-            #             # if len(a.x_train) == 0:
-            #             #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
-
-            #             #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
-            #             #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
-                        
-            #             #     a.x_train = np.vstack((a.x_train, x_train))
-            #             #     a.y_train = np.hstack((a.y_train, y_train))
-
-            #             #     a.updateModel()
-            #             assert check_points(a, MAIN) == True
-            #             a.resetModel()
-            #             a.updateModel()
-            #             a.region_support.addFootprint(ag.x_train, ag.y_train, ag.model)
-            #             assert check_points(a, ROLLOUT) == True
-            #             # print(f'agent xtr rollout BO sample {regsamples}', a.x_train, a.y_train, a.id, a.region_support.input_space)
-
-            #         print('_____________________________________')
-            #         # model = GPR(gpr_model)
-            #         # model.fit(globalXtrain, globalYtrain)
-            #         agentModels.append(agents)
-            #         xroots.append(Xs_root)
                     
             # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
             print('xroots and agents b4 joblib : ', len(xroots), len(agentModels))
             Xs_roots = self.evalConfigs(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
             print("Xs_root from joblib ",len(Xs_roots))
+            # save_node(Xs_roots, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/Xs_roots_{sample}.pkl')
             # exit(1)
 
             for x in Xs_roots:
-                print_tree(x[1], MAIN)
+                # print_tree(x[1], MAIN)
                 agents = x[2]
                 # exit(1)
                 # for smp in range(samples):
@@ -281,7 +239,7 @@ class RolloutBO(BO_Interface):
                 # self.root = self._evaluate_at_point_list(agents)
                 agents = sorted(agents, key=lambda x: x.id)
                 for a in agents:
-                    print('aid inside reward acc: ', a.id)
+                    # print('aid inside reward acc: ', a.id)
                     # avgAgentrewards.append(a.region_support.avgRewardDist)
                     avgAgentrewards = np.vstack((avgAgentrewards, a.region_support.avgRewardDist.reshape((1,num_agents))))
                     # print(avgAgentrewards.shape)
@@ -366,7 +324,7 @@ class RolloutBO(BO_Interface):
                 # actPrior = Prior(a.ActualXtrain, a.ActualXtrain, a.model, MAIN)
                 a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
                 
-            print('b4 reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
+            # print('b4 reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
             # jump = random.random()
             # subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
             # agentsWithminSmps = partitionRegions(X_root, subregions, MAIN)
@@ -509,7 +467,13 @@ class RolloutBO(BO_Interface):
                 factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
                 agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
                 root.add_child(agents_to_subregion)
+                for id, l in enumerate(root.find_leaves()):
+                    l.setRoutine(MAIN)
+                    if l.getStatus(MAIN) == 1:
+                        mainag = Agent(id, None, self.x_train, self.y_train, l)
+                        mainag(MAIN)
                 roots.append(root)
+                
             else:
                 jump = random.random()
                 subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
@@ -521,6 +485,7 @@ class RolloutBO(BO_Interface):
                         a.region_support.agentList = []
                     a.region_support.resetavgRewardDist(num_agents)
                     a.resetModel()
+                    a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
                 
                 root = deepcopy(X_root)
                 roots.append(root)
@@ -530,36 +495,66 @@ class RolloutBO(BO_Interface):
         #     testv += i.getVolume()
 
         # assert X_root.getVolume() == testv
+        print('roots after dim: ', roots)
 
-        permutations_list = permutations_list #[:2]
-        agents = []
-        moreRoots = []
-        for rt in roots:
-            print_tree(rt, MAIN)
-            for i in range(len(permutations_list)):
-                copyrts = deepcopy(rt)
-                moreRoots.append(copyrts)
+        # permutations_list = permutations_list[:2]
+        # agents = []
+        # moreRoots = []
+        # for rt in roots:
+        #     print_tree(rt, MAIN)
+        #     for i in range(len(permutations_list)):
+        #         copyrts = deepcopy(rt)
+        #         moreRoots.append(copyrts)
 
-        for idx, mrt in enumerate(moreRoots):        
-            # for perm in permutations_list:
-            # print_tree(mrt, MAIN)
-            idx = idx % len(permutations_list)
-            i = 0
-            for id, l in enumerate(mrt.find_leaves()):
-                l.setRoutine(MAIN)
-                if l.getStatus(MAIN) == 1:
-                    if sample == 0:
-                        # print(idx, id,i, len(permutations_list))
-                        mainag = Agent(permutations_list[idx][i], rootModel, self.x_train, self.y_train, l)
-                        mainag(MAIN)
-                        l.addAgentList(mainag, MAIN)
-                    else:
-                        l.agent.id = permutations_list[idx][i]
-                        mainag = l.agent
-                    agents.append(mainag)
-                    i += 1
+        # print('roots b4 perm: ', moreRoots)
 
-        return moreRoots
+        # moreRoots = []
+        # agents = []
+        # nid = 0
+        # for rt in roots:
+        #     for perm in range(len(permutations_list)):
+        #         for id, l in enumerate(rt.find_leaves()):
+        #             l.setRoutine(MAIN)
+        #             nid = nid % num_agents
+        #             if l.getStatus(MAIN) == 1:
+        #                 if sample == 0:
+        #                     # print(idx, id,i, len(permutations_list))
+        #                     mainag = Agent(permutations_list[perm][nid], rootModel, self.x_train, self.y_train, l)
+        #                     mainag(MAIN)
+        #                     l.addAgentList(mainag, MAIN)
+        #                 else:
+        #                     l.agent.id = permutations_list[perm][nid]
+        #                     mainag = l.agent
+        #                 nid += 1
+        #                 agents.append(mainag)
+        #         moreRoots.append(deepcopy(rt))
+
+        # for idx, mrt in enumerate(moreRoots):        
+        #     # for perm in permutations_list:
+        #     # print_tree(mrt, MAIN)
+        #     idx = idx % len(permutations_list)
+        #     i = 0
+        #     for id, l in enumerate(mrt.find_leaves()):
+        #         l.setRoutine(MAIN)
+        #         if l.getStatus(MAIN) == 1:
+        #             if sample == 0:
+        #                 # print(idx, id,i, len(permutations_list))
+        #                 mainag = Agent(permutations_list[idx][i], rootModel, self.x_train, self.y_train, l)
+        #                 mainag(MAIN)
+        #                 l.addAgentList(mainag, MAIN)
+        #             else:
+        #                 l.agent.id = permutations_list[idx][i]
+        #                 mainag = l.agent
+        #             agents.append(mainag)
+        #             i += 1
+
+        # print('roots after perm: ', roots)
+        # for i in moreRoots:
+        #     print_tree(i, MAIN) 
+
+        # exit(1)
+
+        return roots
 
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
@@ -569,7 +564,7 @@ class RolloutBO(BO_Interface):
             return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng) for csmp in tqdm(range(configSamples)))
+        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
         
         roots = [results[i][0] for i in range(configSamples)]
         agents = [results[i][1] for i in range(configSamples)]
@@ -581,12 +576,13 @@ class RolloutBO(BO_Interface):
         self.ei_roll = RolloutEI()
         # print('inside evalConfigs')
         # Define a helper function to be executed in parallel
-        def evaluate_in_parallel(Xs_root_item, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
             # print('Xs_root_item in eval config : ',Xs_root_item)
+            agents = []
             return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, agent, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item, agent) in tqdm(zip(Xs_root, agents)))
+        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
 
         return results
     

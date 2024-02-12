@@ -144,8 +144,15 @@ class RolloutEI(InternalBO):
                 # ag = Agent(gpr_model, xtr, ytr, l)
                 # ag(MAIN)
                 agents.append(lv.agent)
+                # print('-'*100)
+                # print(lv)
+                # print(lv.__dict__)
+                # print('.'*100)
+                # print(lv.agent)
+                # print(lv.agent.__dict__)
+                # print('-'*100)
         agents = sorted(agents, key=lambda x: x.id)
-        print('agents in rollout EI start : ', agents)
+        # print('agents in rollout EI start : ', agents)
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
 
         self.num_agents = num_agents
@@ -168,7 +175,7 @@ class RolloutEI(InternalBO):
         # subregions = reassignUsingRewardDist( root, MAIN, agents)
         # agents = partitionRegions(root, subregions, MAIN)
 
-        #     # exportTreeUsingPlotly(root, MAIN)
+        # exportTreeUsingPlotly(root, MAIN)
         # assert len(agents) == num_agents
         #     # print(f'############################## End of Main iter ##############################################')
         #     # if currentAgentIdx == 1:
@@ -427,6 +434,11 @@ class RolloutEI(InternalBO):
                 # print('agent xtr ytr in rollout  :',a.simXtrain, a.simYtrain)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
                 model = a.simModel
+                if model == None:
+                    print(' No model !')
+                    print('h: ', h)
+
+                    exit(1)
                 for ia in agents:
                     if (ia.simYtrain).all() == None:
                         print('min(ia.simYtrain) < minytrval: ' , minytrval)
@@ -458,6 +470,11 @@ class RolloutEI(InternalBO):
                             # print('common parent : ', commonReg.input_space, a.simReg, reg )
                             # cmPrior = commonReg.rolloutPrior
                             model = commonReg.model #self.gprFromregionPairs(a, reg.agent)
+                            if model == None:
+                                print(' No common model b/w !', a.simReg.input_space, reg.input_space)
+                                print('h: ', h)
+                                save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+'/node_with_no_common_model.pkl')
+                                exit(1)
 
                         next_xt = self._opt_acquisition(ytr,model,reg.input_space,self.rng)  # reg.agent.model
                         next_xt = np.asarray([next_xt])
