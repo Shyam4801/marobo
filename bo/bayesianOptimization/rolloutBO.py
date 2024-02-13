@@ -219,7 +219,7 @@ class RolloutBO(BO_Interface):
             # xroots = []
             
             roots = self.getRootConfigs(X_root, model, sample, num_agents, tf_dim, agentsWithminSmps)
-            xroots, agentModels = self.genSamplesForConfigsinParallel(2, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            xroots, agentModels = self.genSamplesForConfigsinParallel(configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
 

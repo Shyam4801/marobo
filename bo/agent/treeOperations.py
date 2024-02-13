@@ -6,6 +6,11 @@ from .partition import Node
 from bo.sampling import uniform_sampling, lhs_sampling
 from bo.utils import compute_robustness
 from itertools import permutations
+import yaml
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
+
 
 def split_region(root,dim,num_agents):
     # print('split_region: dim',dim, num_agents)
@@ -682,7 +687,8 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
         # print([obj.__dict__ for obj in roots])
         # print()
         permutations_list = list(permutations(range(num_agents)))
-        permutations_list = permutations_list[:2]
+        permToeval = configs['configs']['perm']
+        permutations_list = permutations_list[:permToeval]
         for perm in range(len(permutations_list)):
             for Xs_root in roots:
                 # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
