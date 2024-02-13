@@ -200,7 +200,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 20
-        maxbud = 25
+        maxbud = 22
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 

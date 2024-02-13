@@ -5,3 +5,6 @@ sampling:
 log:
   interval: 40
 testfunc: 'mod_branin'
+configs:
+  perm: 2
+  smp: 2

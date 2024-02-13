@@ -682,7 +682,7 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
         # print([obj.__dict__ for obj in roots])
         # print()
         permutations_list = list(permutations(range(num_agents)))
-        permutations_list = permutations_list[:5]
+        permutations_list = permutations_list[:2]
         for perm in range(len(permutations_list)):
             for Xs_root in roots:
                 # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
@@ -713,8 +713,8 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
                         # mainag(MAIN)
                         mainag = l.agent
                         l.addAgentList(mainag, MAIN)
-                        mainag.x_train = xtr #np.vstack((ag.x_train, xtr))
-                        mainag.y_train = ytr
+                        mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
+                        mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
                         mainag.id = permutations_list[perm][nid]
                         
                         nid += 1

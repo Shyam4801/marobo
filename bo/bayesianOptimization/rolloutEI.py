@@ -124,13 +124,18 @@ class RolloutEI(InternalBO):
         if not os.path.exists('results/'+configs['testfunc']+'/nodes'):
             os.makedirs('results/'+configs['testfunc']+'/nodes')
             os.makedirs('results/'+configs['testfunc']+'/reghist')
+            
+        if not os.path.exists(f'results/dict/iter_{sample}'):
+            os.makedirs(f'results/dict/iter_{sample}')
+        
+        self.savetxtpath = f'results/dict/iter_{sample}/'
 
         lf = self.root.find_leaves()
         xtr = deepcopy(x_train)
         ytr = deepcopy(y_train)
         agents = []
         # assert len(a.region_support.agentList) == 1
-        for lv in lf:
+        for i,lv in enumerate(lf):
             lv.resetavgRewardDist(num_agents)
             # print('lv.avgRewardDist after reset :',lv.avgRewardDist)
         #     for element in lv.avgRewardDist:
@@ -144,13 +149,15 @@ class RolloutEI(InternalBO):
                 # ag = Agent(gpr_model, xtr, ytr, l)
                 # ag(MAIN)
                 agents.append(lv.agent)
-                # print('-'*100)
+                # print('- START '*100)
+                savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
                 # print(lv)
                 # print(lv.__dict__)
                 # print('.'*100)
                 # print(lv.agent)
                 # print(lv.agent.__dict__)
-                # print('-'*100)
+                # print('-START'*100)-
+            savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
         agents = sorted(agents, key=lambda x: x.id)
         # print('agents in rollout EI start : ', agents)
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
@@ -484,15 +491,15 @@ class RolloutEI(InternalBO):
                         f_xt = np.random.normal(mu,std,1)
                         # min_yxt = f_xt
                         reward = (-1 * self.reward(f_xt,ytr)) #float('inf')
-                        actregSamples = uniform_sampling(self.tf_dim*10, reg.input_space, self.tf_dim, self.rng)
-                        mu, std = self._surrogate(model, actregSamples)
-                        for i in range(len(actregSamples)):
-                            f_xt = np.random.normal(mu[i],std[i],1)
-                            smp_reward = self.reward(f_xt,ytr)
-                            if reward > -1*smp_reward:
-                                reward = ((-1 * smp_reward))
-                                reg.addSample(actregSamples[i])
-                                next_xt = actregSamples[i]
+                        # actregSamples = uniform_sampling(self.tf_dim*10, reg.input_space, self.tf_dim, self.rng)
+                        # mu, std = self._surrogate(model, actregSamples)
+                        # for i in range(len(actregSamples)):
+                        #     f_xt = np.random.normal(mu[i],std[i],1)
+                        #     smp_reward = self.reward(f_xt,ytr)
+                        #     if reward > -1*smp_reward:
+                        #         reward = ((-1 * smp_reward))
+                        #         reg.addSample(actregSamples[i])
+                        #         next_xt = actregSamples[i]
                         
                         # reg.reward.append( (-1 * self.reward(f_xt,ytr)))
                         # reg.rewardDist.append((-1 * self.reward(f_xt,ytr)))
@@ -575,9 +582,20 @@ class RolloutEI(InternalBO):
                     agent.simYtrain = np.hstack((agent.simYtrain, actY))
                     agent.updatesimModel()
                 
+                # print('-'*100)
+                # print(lv)
+                # print(lv.__dict__)
+                savetotxt(self.savetxtpath+f'rl_h{h}_agent_{aidx}', agent.__dict__)
+                # print(f'- {h} ROLLOUT'*100)
+                # print(agent)
+                # print(agent.__dict__)
+                # print('-ROLLOUT'*100)
                 # simPrior = Prior(agent.simXtrain, agent.simYtrain, agent.simModel, ROLLOUT)
                 agent.simReg.addFootprint(agent.simXtrain, agent.simYtrain, agent.simModel)
                 agent.simReg.model = deepcopy(agent.simModel)
+                
+                # assert agent.simReg.checkFootprint() == True
+                
                 # smp = sample_from_discontinuous_region(10*self.tf_dim, [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 # print('a.simReg.rewardDist: ',self.mc, a.id, a.simReg.rewardDist[a.id])
                 writetocsv(f'results/'+configs['testfunc']+f'/reghist/SimA_{agent.id}', [[self.sample, self.mc, agent.id, agent.simReg.input_space.tolist(), min(agent.simReg.rewardDist.tolist()), np.argmin(agent.simReg.rewardDist.tolist())]])
@@ -595,6 +613,16 @@ class RolloutEI(InternalBO):
             # save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_{currentAgentIdx}.pkl')
             # if h < 3:
             #     exit(1)
+            lfs = rl_root.find_leaves() 
+            for i,lv in enumerate(lfs):
+                savetotxt(self.savetxtpath+f'rl_h{h}_reg_{i}', lv.__dict__)
+                try:
+                    assert lv.checkFootprint() == True
+                except AssertionError:
+                    print(lv.__dict__)
+            # print(f'> h {h}'*100)
+            # print_tree(rl_root, ROLLOUT)
+            # print(f'> h {h}'*100)
             h -= 1
             if h <= 0 :
                 break

@@ -72,6 +72,19 @@ def find_min_diagonal_sum_matrix(matrix):
 
     return min_matrix
 
+def find_min_among_diagonal_matrix(matrix):
+    n, _, _ = matrix.shape
+    min_sum = float('inf')
+    min_matrix = None
+    
+    for i in range(n):
+        sums = min(np.diagonal(matrix[i])) #np.trace(matrix[i])
+        if min_sum > sums:
+            min_sum = sums
+            min_matrix = i
+
+    return min_matrix
+
 def unwrap_self(arg, **kwarg):
     return RolloutBO.evalConfigs(*arg, **kwarg)
 
@@ -206,14 +219,18 @@ class RolloutBO(BO_Interface):
             # xroots = []
             
             roots = self.getRootConfigs(X_root, model, sample, num_agents, tf_dim, agentsWithminSmps)
-            xroots, agentModels = self.genSamplesForConfigsinParallel(10, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            xroots, agentModels = self.genSamplesForConfigsinParallel(2, num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
 
             # print('xroots : ', xroots)
-            # for i in xroots:
-            #     print_tree(i, MAIN)
-            #     for id, l in enumerate(i.find_leaves()):
+            for i in xroots:
+                print_tree(i, MAIN)
+                for id, l in enumerate(i.find_leaves()):
+                    try:
+                        assert l.checkFootprint() == True
+                    except AssertionError:
+                        print(l.__dict__)
             #         # l.setRoutine(MAIN)
             #         if l.getStatus(MAIN) == 1:
             #             a = l.agent
@@ -230,7 +247,9 @@ class RolloutBO(BO_Interface):
             # exit(1)
 
             for x in Xs_roots:
-                # print_tree(x[1], MAIN)
+                print('$'*100)
+                print_tree(x[1], MAIN)
+                print('$'*100)
                 agents = x[2]
                 # exit(1)
                 # for smp in range(samples):
@@ -295,13 +314,25 @@ class RolloutBO(BO_Interface):
 
             x_opt_from_all = []
             for a in agentsWithminSmps:
+                minx = a.x_train[np.argmin(a.y_train),:]
+                miny = np.min(a.y_train)
+                print(a.x_train, a.y_train)
+                print('minx , miny: ', minx, miny)
                 a.resetActual()
+
+                a.x_train = np.vstack((a.x_train, minx))
+                a.y_train = np.hstack((a.y_train, miny))
+
                 a.updateModel()
                 assert a.x_train.all() == a.ActualXtrain.all()
                 print('after rest actual : ', a.id, a.x_train, a.y_train)
                 #get the new set of points by EI
                 assert check_points(a, MAIN) == True
                 x_opt = self.ei_roll._opt_acquisition(ytr, a.model, a.region_support.input_space, rng)
+                yofEI, _ = compute_robustness(np.array([x_opt]), test_function, behavior, agent_sample=True)
+                print('yofEI, miny: ',yofEI, miny)
+                if yofEI > miny:
+                    x_opt = minx
                 x_opt_from_all.append(x_opt)
 
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
@@ -323,7 +354,9 @@ class RolloutBO(BO_Interface):
                 # add actual footprint 
                 # actPrior = Prior(a.ActualXtrain, a.ActualXtrain, a.model, MAIN)
                 a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
-                
+            
+            print_tree(X_root, MAIN)
+            # exit(1)
             # print('b4 reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
             # jump = random.random()
             # subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
@@ -476,18 +509,25 @@ class RolloutBO(BO_Interface):
                 
             else:
                 jump = random.random()
-                subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
-                agentsWithminSmps = partitionRegions(X_root, subregions, MAIN, dim)
-
-                for a in agentsWithminSmps:
+                root = deepcopy(X_root)
+                agents =[]
+                for id, l in enumerate(root.find_leaves()):
+                    if l.getStatus(MAIN) == 1:
+                        agents.append(l.agent)
+                subregions = reassignUsingRewardDist( root, MAIN, agents, jump_prob=jump)
+                agents = partitionRegions(root, subregions, MAIN, dim)
+                print('after moving and partitioning ')
+                print_tree(root, MAIN)
+                for a in agents:
                     a.resetRegions()
                     if a.region_support.getStatus(MAIN) == 0:
                         a.region_support.agentList = []
                     a.region_support.resetavgRewardDist(num_agents)
                     a.resetModel()
-                    a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
+                    # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
+                    # assert a.region_support.checkFootprint() == True
                 
-                root = deepcopy(X_root)
+                
                 roots.append(root)
             
         # testv=0

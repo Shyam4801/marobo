@@ -46,6 +46,19 @@ class Node:
         self.xtr = deepcopy(xtr)
         self.ytr = deepcopy(ytr)
         self.model = deepcopy(model)
+
+    def checkFootprint(self):
+        def point_in_region(points, region):
+            # Check if each coordinate of the point is within the corresponding bounds of the region
+            res = True
+            for point in points:
+                res = res and all(np.logical_and(region[:, 0] <= point, point <= region[:, 1]))
+                # if res == False:
+                    # print('pt not in region :',agent.id, point, region)
+            return res
+
+        res = point_in_region(self.xtr, self.input_space)
+        return res
          
 
     def resetTrace(self, routine):
