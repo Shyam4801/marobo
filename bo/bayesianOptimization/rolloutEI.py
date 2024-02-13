@@ -150,14 +150,14 @@ class RolloutEI(InternalBO):
                 # ag(MAIN)
                 agents.append(lv.agent)
                 # print('- START '*100)
-                savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
                 # print(lv)
                 # print(lv.__dict__)
                 # print('.'*100)
                 # print(lv.agent)
                 # print(lv.agent.__dict__)
                 # print('-START'*100)-
-            savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
+            # savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
         agents = sorted(agents, key=lambda x: x.id)
         # print('agents in rollout EI start : ', agents)
         # print('_______________________________ AGENTS AT WORK ___________________________________')  
@@ -585,7 +585,7 @@ class RolloutEI(InternalBO):
                 # print('-'*100)
                 # print(lv)
                 # print(lv.__dict__)
-                savetotxt(self.savetxtpath+f'rl_h{h}_agent_{aidx}', agent.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_h{h}_agent_{aidx}', agent.__dict__)
                 # print(f'- {h} ROLLOUT'*100)
                 # print(agent)
                 # print(agent.__dict__)
@@ -615,7 +615,7 @@ class RolloutEI(InternalBO):
             #     exit(1)
             lfs = rl_root.find_leaves() 
             for i,lv in enumerate(lfs):
-                savetotxt(self.savetxtpath+f'rl_h{h}_reg_{i}', lv.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_h{h}_reg_{i}', lv.__dict__)
                 try:
                     assert lv.checkFootprint() == True
                 except AssertionError:

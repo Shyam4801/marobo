@@ -164,7 +164,7 @@ class RolloutBO(BO_Interface):
         # globalXtrain = np.empty((1,tf_dim))
         # globalYtrain = np.empty((1))
 
-        init_sampling_type = "uniform_sampling"
+        init_sampling_type = "lhs_sampling"
         # init_budget = configs['sampling']['initBudget'] * tf_dim#x_train.shape[0]
 
         # for id, l in enumerate(agents_to_subregion):
