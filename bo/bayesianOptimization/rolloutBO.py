@@ -626,6 +626,36 @@ class RolloutBO(BO_Interface):
 
         return results
     
+    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    #     results = []
+    #     self.ei_roll = RolloutEI()
+    #     # print('inside evalConfigs')
+    #     # Define a helper function to be executed in parallel
+    #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    #         print('Xs_root_item in eval config : ',Xs_root_item)
+    #         agents = []
+    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+            
+    #     def evalChunks(xs, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    #         res = []
+    #         print('xs :', len(xs))
+    #         for Xs_root_item in xs:
+    #             xroot = evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+    #             res.append(xroot)
+    #         return res
+        
+    #     numthreads = int(mp.cpu_count()/2)
+    #     print(numthreads, mp.cpu_count())
+    #     chunk_size = int(len(Xs_root)/mp.cpu_count())
+    #     print('chunk_size: ',chunk_size)
+    #     data_chunks = [Xs_root[i:i+chunk_size] for i in range(0, len(Xs_root), chunk_size)]
+
+    #     # Execute the evaluation function in parallel for each Xs_root item
+    #     fin = Parallel(n_jobs=-1)(delayed(evalChunks)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(data_chunks))
+    #     print('len(fin)', len(fin))
+    #     results.extend(fin)
+    #     print('results: ',len(results))
+    #     return results
 
     def get_nextXY(self, agentmodels, minRewardIdx): #, rng, test_function, behavior):
         agents = []

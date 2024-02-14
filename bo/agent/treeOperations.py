@@ -28,6 +28,23 @@ def split_region(root,dim,num_agents):
     regs = [Node(i, 1) for i in regs]
     return regs
     
+# def get_subregion(root, num_agents, dic, dim):
+#     q = [root]
+#     used_dims = set()  # Keep track of dimensions already used for splitting
+
+#     while len(q) < num_agents:
+#         cuts = dim % len(dic) 
+#         if len(q) % dic[cuts] == 0:
+#             # Ensure each dimension is considered at least once before repeating
+#             dim = np.random.choice([i for i in range(dim+1) if i not in used_dims])
+#             used_dims.add(dim)
+
+#         curr = q.pop(0)
+#         ch = split_region(curr, dim, dic[cuts])
+#         curr.add_child(ch)
+#         q.extend(ch)
+
+#     return q
 
 def get_subregion(root, num_agents, dic, dim):
     q = [root]
