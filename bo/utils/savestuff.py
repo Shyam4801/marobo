@@ -1,4 +1,4 @@
-import csv, pickle
+import csv, pickle, json
 
 def writetocsv(name, rows):
     with open(name, 'a') as f:
@@ -29,3 +29,7 @@ def savetotxt(name, stmt):
         # Restore stdout to its original value
         sys.stdout = sys.__stdout__
 
+
+def savetojson(file_path, data):
+    with open(file_path, "w") as json_file:
+        json.dump(data, json_file)

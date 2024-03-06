@@ -23,6 +23,7 @@ class Agent():
         self.simregHist = [region_support.input_space]
         self.regHist = [region_support.input_space]
         self.evalRewards = []
+        self.chkobjcopy = {}
 
     def initAgent(self, init_sampling_type, init_budget, tf_dim, rng):
         if init_sampling_type == "lhs_sampling":
@@ -105,11 +106,13 @@ class Agent():
         self.model = GPR(InternalGPR())
         self.model.fit(self.x_train, self.y_train)
         self.simModel = deepcopy(self.model)
+        self.chkobjcopy[self.model] = self.simModel
 
     def resetModel(self):
         self.simModel = deepcopy(self.model)
         self.simXtrain = deepcopy(self.x_train)
         self.simYtrain = deepcopy(self.y_train)
+        self.chkobjcopy[self.model] = self.simModel
 
     def resetActual(self):
         self.x_train = deepcopy(self.ActualXtrain)

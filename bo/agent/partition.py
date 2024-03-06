@@ -28,12 +28,43 @@ class Node:
         self.model = None
         self.rolloutPrior = None 
         self.mainPrior = None
+        self.smpXtr = None #deepcopy(self.mcsmpXtr)
+        self.smpYtr = None #deepcopy(self.mcsmpYtr)
+        self.avgsmpYtr = None
+        self.avgsmpXtr = None
+        self.mcsmpXtr = None
+        self.mcsmpYtr = None
+        self.chkobjcopy = {}
 
     def __call__(self):
         if self.agent != None:
             self.agentList = [self.agent]
         else:
             self.agentList = []
+
+    def check_points(self):
+        # if self.routine == MAIN:
+        xtr = self.smpXtr
+        reg = self.input_space
+        # else:
+        #     xtr = self.smpXtr
+        #     reg = self.input_space
+
+        def point_in_region(points, region):
+            # Check if each coordinate of the point is within the corresponding bounds of the region
+            res = True
+            for point in points:
+                res = res and all(np.logical_and(region[:, 0] <= point, point <= region[:, 1]))
+                # if res == False:
+                    # print('pt not in region :',agent.id, point, region)
+            return res
+
+        res = point_in_region(xtr, reg)
+        return res
+    
+    def resetSmps(self):
+        self.smpXtr = deepcopy(self.mcsmpXtr)
+        self.smpytr = deepcopy(self.mcsmpYtr)
 
     def testaddFootprint(self, prior, routine): #xtr , ytr, model):
         if routine == MAIN:
@@ -46,6 +77,13 @@ class Node:
         self.xtr = deepcopy(xtr)
         self.ytr = deepcopy(ytr)
         self.model = deepcopy(model)
+        self.chkobjcopy[model] = self.model
+
+    def updatesmpObs(self, parent):
+         self.smpXtr = deepcopy(parent.smpXtr)
+         self.smpYtr = deepcopy(parent.smpYtr)
+
+    # def updatesmpY(self, model):
 
     def checkFootprint(self):
         def point_in_region(points, region):

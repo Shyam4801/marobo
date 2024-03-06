@@ -3,8 +3,9 @@ sampling:
   mc_iters: 4
   num_inactive: 100
 log:
-  interval: 40
-testfunc: 'mod_branin'
+  interval: 4
+testfunc: 'rastrigin'
 configs:
-  perm: 2
-  smp: 2
+  perm: 1
+  smp: 1
+parallel: True

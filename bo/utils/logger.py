@@ -8,7 +8,7 @@ import threading
 import csv
 
 LOGPATH = 'results/timerlog.txt'
-LOGRESULTSPATH = 'results/logDir/'
+LOGRESULTSPATH = 'results/rastrigin/logDir'
 # logging.basicConfig(filename=LOGRESULTSPATH+'test.txt', level=logging.INFO, format="%(asctime)s - Variable: %(message)s")
 metadata = ""
 JOBID = ""
@@ -51,7 +51,7 @@ def log_periodically(interval):
                     write_to_csv(self.point_history, name)
 
             def write_to_csv(data, name):     
-                timestmp = LOGRESULTSPATH+JOBID+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+                timestmp = LOGRESULTSPATH+JOBID #+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
                 if not os.path.exists(timestmp):
                     print(timestmp)
                     os.makedirs(timestmp)           

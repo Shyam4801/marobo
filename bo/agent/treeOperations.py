@@ -7,6 +7,8 @@ from bo.sampling import uniform_sampling, lhs_sampling
 from bo.utils import compute_robustness
 from itertools import permutations
 import yaml
+from collections import defaultdict
+# from bo.bayesianOptimization.rolloutEI import RolloutEI
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
@@ -164,6 +166,72 @@ def accumulate_rewardDist(node, numAgents):
 
 # print(accumulate_rewards_and_update(n))
 # print_tree(n)
+
+def accumulateSamples(node):
+    # Base case: If the node is a leaf, return its reward
+    if not node.child:
+        return node.smpXtr, node.smpYtr
+
+    # Initialize the accumulated reward for this node
+    accumulated_reward = node.smpXtr
+    accy = node.smpYtr
+
+    # Recursively accumulate rewards from child nodes and update node.value
+    for child in node.child:
+        child_accumulated_reward, chy = accumulateSamples(child)
+        
+        accumulated_reward = np.vstack((accumulated_reward, child_accumulated_reward))
+        accy = np.hstack((accy, chy))
+
+    dictionary = {} #{tuple(row): value for row, value in zip(array, values)}
+    for row, value in zip(accumulated_reward, accy):
+        if tuple(row) in dictionary:
+            dictionary[tuple(row)] += value
+        else:
+            dictionary[tuple(row)] = value
+            
+    keys = np.array(list(dictionary.keys()))
+    values = np.array(list(dictionary.values()))
+
+
+    return keys, values #accumulated_reward, accy
+
+
+# def accumulateSamples(node):
+#     # Base case: if it's a leaf node, return its X and Y
+#     if not node.child:
+#         return node.smpXtr, node.smpYtr.reshape(-1, 1)  # Reshape Y to make it 2D
+    
+#     # Initialize dictionaries to store accumulated Y and counts for each X value
+#     aggregated_Y = defaultdict(list)
+#     counts = defaultdict(int)
+    
+#     # Accumulate arrays from children
+#     for child in node.child:
+#         child_X, child_Y = accumulateSamples(child)
+#         for x, y in zip(child_X, child_Y):
+#             x_key = tuple(x.tolist()) if isinstance(x, np.ndarray) else x
+#             aggregated_Y[x_key].append(y)
+#             counts[x_key] += 1
+    
+#     # Aggregate duplicate values and calculate mean of corresponding Y values
+#     aggregated_X = []
+#     mean_Y = []
+#     for x_key, y_values in aggregated_Y.items():
+#         aggregated_X.append(x_key)
+#         mean_Y.append(np.mean(y_values, axis=0))
+#     print('aggregated_X : ',aggregated_X, mean_Y)
+    
+#     # Include the current node's X and Y values
+#     aggregated_X.extend(node.smpXtr)
+#     mean_Y.extend(node.smpYtr)
+#     print('aggregated_X fter: ',aggregated_X, mean_Y)
+#     mean_Y = np.asarray(mean_Y, dtype='object')
+#     mean_Y = np.hstack((mean_Y))
+#     if mean_Y.shape[0] > 1:
+#         mean_Y = mean_Y.reshape((-1))
+#     # mean_Y = np.hstack((mean_Y))
+#     return np.asarray(aggregated_X), mean_Y
 
 def find_min_leaf(node, routine, min_leaf=None):
         if min_leaf is None:
@@ -438,7 +506,8 @@ def partitionRegions(root, subregions, routine, dim):
                     rt = 'ROLLOUT'
                 # print(f'b4 upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
                 agent.updateObs(subr, routine)
-                
+                ch[idx].updatesmpObs(subr)
+                splitsmpObs(ch[idx])
                 # print(f'after upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
                 # print('agent.getRegion(routine): ',agent.getRegion(routine))
                 # print('-------------------more than 1 agent-------------------')
@@ -591,9 +660,7 @@ def find_leaves_and_compute_avg(trees):
     avg_leaf_values = [total_leaf_values[i] / total_leaf_counts[i] if total_leaf_counts[i] > 0 else 0 for i in range(len(trees))]
     return leaves, avg_leaf_values
 
-
-def splitObs(agents, tf_dim, rng, routine, tf, behavior):
-        def filter_points_in_region(points, values, region):
+def filter_points_in_region(points, values, region):
             # Create a boolean mask indicating which points fall within the region
             mask = np.all(np.logical_and(region[:, 0] <= points, points <= region[:, 1]), axis=1)
 
@@ -608,6 +675,36 @@ def splitObs(agents, tf_dim, rng, routine, tf, behavior):
             #     print('idx err caught :', points, region, filtered_points, filtered_values)
 
             return filtered_points, filtered_values
+
+def splitsmpObs(region):  #, tf_dim, rng):
+    filtered_points, filtered_values = filter_points_in_region(region.smpXtr, region.smpYtr, region.input_space)
+
+    region.smpXtr = filtered_points
+    region.smpYtr = filtered_values
+
+    if len(filtered_points) == 0:
+        print(' filtered pts in reg empty:',  region.input_space)
+
+        # actregSamples = lhs_sampling(tf_dim*10 , region.input_space, tf_dim, rng)  #self.tf_dim*10
+        # mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
+        # actY = []
+        # for i in range(len(actregSamples)):
+        #     f_xt = np.random.normal(mu[i],std[i],1)
+        #     actY.append(f_xt)
+        # actY = np.hstack((actY))
+        # # # print('act Y ',actY)
+        # agent.simXtrain = np.vstack((agent.simXtrain , actregSamples))
+        # agent.simYtrain = np.hstack((agent.simYtrain, actY))
+
+        # x_train = uniform_sampling( 1, a.region_support.input_space, tf_dim, rng)
+        # y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+
+        # a.ActualXtrain = np.vstack((filtered_points, x_train))
+        # a.ActualYtrain = np.hstack((filtered_values, y_train))
+
+
+def splitObs(agents, tf_dim, rng, routine, tf, behavior):
+        
         
         for a in agents:
             if routine == MAIN:
@@ -692,7 +789,7 @@ def find_parent(root, target):
 
     return None
 
-def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         avgrewards = np.zeros((1,num_agents,num_agents))
         agentModels = []
         xroots = []
@@ -730,14 +827,14 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
                         # else:
                         #     model = l.agent.model
                         
-                        xtr, ytr = initAgents(l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                        # xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
                         # print(idx, id,i, len(permutations_list))
                         # mainag = Agent(permutations_list[perm][nid], None, xtr, ytr, l)
                         # mainag(MAIN)
                         mainag = l.agent
                         l.addAgentList(mainag, MAIN)
-                        mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
-                        mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
+                        # mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
+                        # mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
                         mainag.id = permutations_list[perm][nid]
                         
                         nid += 1
@@ -748,7 +845,11 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
                     # if l.getStatus(MAIN) == 1:
                     #     # if sample != 0:
                     #     xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
-                    #     # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                        # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                        # print(f'agent actual xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
+                    # else:
+                    #     print(f'inactive xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                    #     print(f'agent xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
 
                     #     ag = l.agent
                     #     ag.x_train = xtr #np.vstack((ag.x_train, xtr))
@@ -757,28 +858,54 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
                     #     # ag.updateModel()
                     #     ag(MAIN)
                     #     agents.append(ag)
+                minytrval = float('inf')
+                minytr = []
+                for ix, a in enumerate(agents):
+                    for ia in agents:
+                        if min(ia.y_train) < minytrval:
+                            minytrval = min(ia.y_train)
+                            minytr = ia.y_train
+                            
                 
                 agents = sorted(agents, key=lambda x: x.id)
                 agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
                 for a in agents:
                     # if sample == 0:
                     #     a.ActualXtrain == 
-                    # if len(a.x_train) == 0:
-                    #     print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
+                    xtsize = (tf_dim*5) - len(a.x_train)
+                    if xtsize > 0: 
+                        # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
-                    #     x_train = uniform_sampling( 5, a.region_support.input_space, tf_dim, rng)
-                    #     y_train, falsified = compute_robustness(x_train, self.tf, behavior, agent_sample=True)
+                        x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)
+                        y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
                     
-                    #     a.x_train = np.vstack((a.x_train, x_train))
-                    #     a.y_train = np.hstack((a.y_train, y_train))
+                        a.x_train = np.vstack((a.x_train, x_train))
+                        a.y_train = np.hstack((a.y_train, y_train))
 
-                    #     a.updateModel()
+                        # a.updateModel()
                     assert check_points(a, MAIN) == True
-                    a.resetModel()
                     a.updateModel()
+                    a.resetModel()
                     a.region_support.addFootprint(a.x_train, a.y_train, a.model)
+                    
                     assert check_points(a, ROLLOUT) == True
                     # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
+
+                    xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
+                    
+                    x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
+                    x_opt = np.asarray([x_opt])
+                    mu, std = ei._surrogate(a.model, x_opt)
+                    f_xt = np.random.normal(mu,std,1)
+                    xtr = np.vstack((xtr , x_opt))
+                    ytr = np.hstack((ytr, f_xt))
+                    print('ei pt to eval : ',x_opt, f_xt)
+
+                    a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                    a.region_support.smpYtr = ytr
+                    a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                    a.simReg.smpYtr = ytr
+                    assert a.region_support.check_points() == True
                 
 
                 # print(f'_________________  ____________________')
@@ -786,11 +913,11 @@ def genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, beha
                 # model.fit(globalXtrain, globalYtrain)
                 agentModels.append(deepcopy(agents))
                 xroots.append(deepcopy(Xs_root))
-
+                # exit(1)
         return xroots, agentModels
 
 
-def initAgents(region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
+def initAgents(globmodel,region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
         # state = np.random.get_state()
 
         # # Print the seed value
@@ -802,16 +929,17 @@ def initAgents(region_support, init_sampling_type, init_budget, tf_dim, tf, beha
         else:
             raise ValueError(f"{init_sampling_type} not defined. Currently only Latin Hypercube Sampling and Uniform Sampling is supported.")
         
-        y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=store)
+        # y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=store)
         # if not falsified:
         #     print("No falsification in Initial Samples. Performing BO now")
         # ei = RolloutEI()
-        # mu, std = ei._surrogate(globmodel, x_train)  #agent.simModel
-        # actY = []
-        # for i in range(len(x_train)):
-        #     f_xt = np.random.normal(mu[i],std[i],1)
-        #     actY.append(f_xt)
-        # actY = np.hstack((actY))
+        mu, std = globmodel.predict( x_train)  #agent.simModel
+        actY = []
+        for i in range(len(x_train)):
+            f_xt = np.random.normal(mu[i],std[i],1)
+            actY.append(f_xt)
+        actY = np.hstack((actY))
+        y_train = actY
 
         return x_train , y_train #actY
 
