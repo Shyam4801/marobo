@@ -186,7 +186,7 @@ def accumulateSamples(node):
     dictionary = {} #{tuple(row): value for row, value in zip(array, values)}
     for row, value in zip(accumulated_reward, accy):
         if tuple(row) in dictionary:
-            dictionary[tuple(row)] += value
+            dictionary[tuple(row)] = value
         else:
             dictionary[tuple(row)] = value
             
@@ -906,6 +906,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
                     a.simReg.smpYtr = ytr
                     assert a.region_support.check_points() == True
+                    assert a.simReg.check_points() == True
                 
 
                 # print(f'_________________  ____________________')
