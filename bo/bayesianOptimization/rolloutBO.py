@@ -209,6 +209,7 @@ class RolloutBO(BO_Interface):
 
         agentAftereachSample = []
         agentsWithminSmps = 0
+        agdic = {0:0,1:0,2:0,3:0}
         # client = self.getWorkers()
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalYtrain))
@@ -318,6 +319,19 @@ class RolloutBO(BO_Interface):
             #get the corresponding Xroot
             X_root = Xs_roots[mincumRewardIdx][1] #xroots[mincumRewardIdx]
 
+            # for a in agentsWithminSmps:
+            #     minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
+            #     miny = np.min(a.region_support.smpYtr)
+            #     miny , _ = compute_robustness(np.array([minx]), test_function, behavior, agent_sample=True)
+            #     # print(a.x_train, a.y_train)
+            #     # print('a.x_train.all() == a.ActualXtrain.all() ',a.x_train, a.ActualXtrain)
+            #     # a.resetActual()
+
+            #     a.x_train = np.vstack((a.x_train, minx))
+            #     a.y_train = np.hstack((a.y_train, miny))
+
+            #     a.updateModel()
+
             minytrval = float('inf')
             minytr = []
             for ix, a in enumerate(agentsWithminSmps):
@@ -332,13 +346,13 @@ class RolloutBO(BO_Interface):
             print_tree(X_root, ROLLOUT)
             print('?'*100)
             x_opt_from_all = []
-            for a in agentsWithminSmps:
-                # minx = a.x_train[np.argmin(a.y_train),:]
-                # miny = np.min(a.y_train)
+            for i,a in enumerate(agentsWithminSmps):
+                # minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
+                # miny = np.min(a.region_support.smpYtr)
                 # miny , _ = compute_robustness(np.array([minx]), test_function, behavior, agent_sample=True)
-                # print(a.x_train, a.y_train)
-                # print('a.x_train.all() == a.ActualXtrain.all() ',a.x_train, a.ActualXtrain)
-                # a.resetActual()
+                # # print(a.x_train, a.y_train)
+                # # print('a.x_train.all() == a.ActualXtrain.all() ',a.x_train, a.ActualXtrain)
+                # # a.resetActual()
 
                 # a.x_train = np.vstack((a.x_train, minx))
                 # a.y_train = np.hstack((a.y_train, miny))
@@ -352,15 +366,18 @@ class RolloutBO(BO_Interface):
                 yofEI, _ = compute_robustness(np.array([x_opt]), test_function, behavior, agent_sample=True)
 
                 print('end of rollout avg smps check ', a.region_support.input_space ,a.region_support.smpXtr, a.region_support.smpYtr)
-                # print('end of rollout smps check ', a.region_support.smpXtr, a.region_support.smpYtr)
+                # print('end of rollout smps check ', a.region_support.avgsmpXtr, a.region_support.avgsmpYtr)
                 smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
-                yofsmpxtr, _ = compute_robustness(np.array([smpxtr]), test_function, behavior, agent_sample=True)
+                yofsmpxtr, _ = compute_robustness(np.array([smpxtr]), test_function, behavior, agent_sample=True) #np.array([smpxtr])
                 
                 print('yofEI, miny: ',x_opt, yofEI, smpxtr, yofsmpxtr)
-                # if yofEI > yofsmpxtr:
-                #     x_opt = smpxtr
+                if yofEI > yofsmpxtr:
+                # x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
+                    x_opt = smpxtr
+                else:
+                    agdic[i] +=  1
                 x_opt_from_all.append(x_opt)
-
+            # exit(1)
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
             pred_sample_x = subx[:num_agents]
 
@@ -389,124 +406,6 @@ class RolloutBO(BO_Interface):
             
             print_tree(X_root, MAIN)
             # exit(1)
-            # print('b4 reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
-            # jump = random.random()
-            # subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
-            # agentsWithminSmps = partitionRegions(X_root, subregions, MAIN)
-            # print('after reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
-            # print('agentsWithminSmps after partition : ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
-            # # x_opt_from_all = []
-
-            # # agentsWithminSmps = splitObs(agentsWithminSmps, tf_dim, rng, MAIN, self.tf, self.behavior)
-            # # for a in agentsWithminSmps:
-            # #     print('obs after splitting :', a.x_train, a.y_train , a.id)
-
-            # # minytrval = float('inf')
-            # # minytr = []
-            # # for ix, a in enumerate(agentsWithminSmps):
-            # #     model = a.model
-            # #     for ia in agents:
-            # #         if min(ia.y_train) < minytrval:
-            # #             minytrval = min(ia.y_train)
-            # #             minytr = ia.y_train
-            # # ytr = minytr
-            # # agentminytr = float('inf')
-            # # agentminxtr = None
-            # # assert len(agentsWithminSmps) == num_agents
-            # # for a in agentsWithminSmps:
-            # #     assert check_points(a, MAIN) == True
-            # #     x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng)
-            # #     x_opt_from_all.append(x_opt)
-            # #     # check_pred_y, falsified = compute_robustness(x_opt, test_function, behavior, agent_sample=True)
-            # #     # idx = int(init_budget/num_agents)
-            # #     # if np.min(a.y_train[idx:]) < check_pred_y:
-            # #     #     x_opt_from_all.append(a.x_train[idx:][np.argmin(a.y_train[idx:]),:])
-            # #     # else:
-            # #     #     x_opt_from_all.append(x_opt)
-            # #         # agentminytr = np.min(a.y_train)
-            # #         # agentminxtr = a.x_train[np.argmin(a.y_train),:]
-
-            # # subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
-            # # pred_sample_x = subx[:num_agents]
-
-            
-            # # pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=False)
-            # # # if pred_sample_y > agentminytr:
-
-
-            # # print('pred_sample_x, pred_sample_y: ', pred_sample_x, pred_sample_y)
-            # # globalXtrain = np.vstack((globalXtrain, pred_sample_x))
-            # # globalYtrain = np.hstack((globalYtrain, (pred_sample_y)))
-            # # print('min obs so far : ', pred_sample_x[np.argmin(pred_sample_y),:], np.min(pred_sample_y))
-            # # print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
-            # assignments=[]
-            # assignmentsDict=[]
-            # status = []
-
-            # # finalAgentsmodel = GPR(gpr_model)
-            # # finalAgentsmodel.fit(pred_sample_x, pred_sample_y)
-            # # local_xopt = self.ei_roll._opt_acquisition(ytr, finalAgentsmodel, a.region_support.input_space, rng)
-            # # local_yopt, falsified = compute_robustness(local_xopt, test_function, behavior, agent_sample=False)
-            # # print('local_xopt: ',local_xopt, local_yopt)
-            
-            # for i,a in enumerate(agentsWithminSmps):
-            # #     # x_opt = self.ei_roll._opt_acquisition(globalYtrain, model, a.region_support.input_space, rng) 
-            # #     # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=True)
-            # #     # actregSamples = uniform_sampling(tf_dim*10, a.region_support.input_space, tf_dim, rng)
-            # #     # pred_act, falsified = compute_robustness(actregSamples, test_function, behavior, agent_sample=True)
-            # #     # # mu, std = self._surrogate(a.model, actregSamples)
-            # #     # # actY = []
-            # #     # # for i in range(len(actregSamples)):
-            # #     # #     f_xt = np.random.normal(mu[i],std[i],1)
-            # #     # #     actY.append(f_xt)
-            # #     # # actY = np.hstack((actY))
-            # #     # # # # print('act Y ',actY)
-            # #     # # a.x_train = actregSamples #np.vstack((agent.simXtrain , actregSamples))
-            # #     # # a.y_train = actY #np.hstack((agent.simYtrain, actY))
-            # #     # # a.updateModel()
-            # #     # # print(f'b4 appendign agent {i} xtrain :', a.x_train)
-            # #     # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
-            # #     # a.y_train = np.hstack((a.y_train, pred_xopt))
-
-            #     # a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
-            #     # a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
-            # #     # a.model = a.simModel
-            #     # a.updateModel()
-            # #     # globalXtrain = np.vstack((globalXtrain, np.asarray(x_opt)))
-            # #     # globalYtrain = np.hstack((globalYtrain, pred_xopt))
-            # #     # x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng) 
-            # #     # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=False)
-            # #     # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
-            # #     # a.y_train = np.hstack((a.y_train, pred_xopt))
-            # #     # print('a.id: ', a.id)
-            # #     # print('agent rewards after main :', a.region_support.input_space , a.region_support.avgRewardDist, 'print(a.getStatus(MAIN)): ',(a.region_support.getStatus(MAIN)))
-                
-            #     a.resetRegions()
-            # #     # a(MAIN)
-            #     # a.resetAgentList(MAIN)
-            #     if a.region_support.getStatus(MAIN) == 0:
-            #         a.region_support.agentList = []
-            #     a.region_support.resetavgRewardDist(num_agents)
-            # #     # writetocsv(f'results/reghist/a{i}_{sample}',a.regHist)
-            # #     maintrace.append(a.simregHist)
-            # #     print(f'a.simregHist: {sample}',a.simregHist)
-                
-            #     a.resetModel()
-            #     # print('agent rewards after reset :', a.region_support.input_space , a.region_support.avgRewardDist)
-                # assignments.append(a.region_support)
-                # assignmentsDict.append(a.region_support.input_space)
-                # status.append(a.region_support.mainStatus)
-
-        # #     # print('pred_sample_x, pred_sample_y: ', globalXtrain[-num_agents:], globalYtrain[-num_agents:])
-        # #     # print('min obs so far : ', globalXtrain[-num_agents:][np.argmin(globalYtrain[-num_agents:]),:], np.min(globalYtrain[-num_agents:]))
-        #     self.assignments.append(assignments)
-        #     self.assignmentsDict.append(assignmentsDict)
-        #     agentAftereachSample.append([(i.x_train, i.y_train) for i in agents])
-        # #     pred_sample_x = globalXtrain[-num_agents:]
-        # #     # print('shape : ',len(self.assignments))
-        # #     # print('final agent regions in rolloutBO', [i[j].input_space for i in self.assignments for j in range(4)])
-        #     self.status.append(status)
-
         #     inactive_subregion_samples = []   
         #     self.agent_point_hist.extend(pred_sample_x)
         # #     # writetocsv(f'results/reghist/aSim{i}_{sample}',a.simregHist)
@@ -516,6 +415,9 @@ class RolloutBO(BO_Interface):
         
         # # print(plot_dict)
         # save_node(save_plot_dict, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/plot_dict.pkl')
+        print()
+        print('times when EI pt was chosen',agdic)
+        print()
         return falsified, self.region_support , None #plot_dict
 
 

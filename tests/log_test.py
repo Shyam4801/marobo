@@ -200,8 +200,8 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 20
-        maxbud = 22
+        init_samp = 100
+        maxbud = 102
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -339,7 +339,7 @@ class Test_internalBO(unittest.TestCase):
         
 
         init_samp = 20
-        maxbud = 22
+        maxbud = 25
         name = Test_internalBO.mod_branin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
