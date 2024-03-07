@@ -899,7 +899,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     f_xt = np.random.normal(mu,std,1)
                     xtr = np.vstack((xtr , x_opt))
                     ytr = np.hstack((ytr, f_xt))
-                    print('ei pt to eval : ',x_opt, f_xt)
+                    # print('ei pt to eval : ',x_opt, f_xt)
 
                     a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
                     a.region_support.smpYtr = ytr

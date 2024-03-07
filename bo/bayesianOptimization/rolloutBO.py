@@ -31,14 +31,16 @@ import multiprocessing as mp
 from multiprocessing import Pool
 from joblib import Parallel, delayed
 from ..utils.plotlyExport import exportTreeUsingPlotly
-from memory_profiler import profile
-
+#from mpi4py import MPI
 from dask.distributed import Client, LocalCluster
-
+from dask_jobqueue import SLURMCluster
 from joblib import parallel_backend, parallel_config
+
+
+
 import joblib
-import dask, time, json
-# from dask_jobqueue import SLURMCluster
+import dask
+import time
 
 
 
@@ -96,6 +98,11 @@ def find_min_among_diagonal_matrix(matrix):
 
 def unwrap_self(arg, **kwarg):
     return RolloutBO.evalConfigs(*arg, **kwarg)
+
+def genSamples_in_parallel(serialized_args):
+    num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng, csmp = pickle.loads(serialized_args)
+    return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -210,7 +217,8 @@ class RolloutBO(BO_Interface):
         agentAftereachSample = []
         agentsWithminSmps = 0
         agdic = {0:0,1:0,2:0,3:0}
-        # client = self.getWorkers()
+        clients = []
+
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalYtrain))
             # for sample in tqdm(range(num_samples)):
@@ -252,13 +260,24 @@ class RolloutBO(BO_Interface):
                     
             # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
             print('xroots and agents b4 joblib : ', len(xroots), len(agentModels))
-            Xs_roots = self.evalConfigs(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
-            print("Xs_root from joblib ",len(Xs_roots))
-            # save_node(Xs_roots, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/Xs_roots_{sample}.pkl')
-            # exit(1)
-            # if sample==1:
-            #     exit(1)
-            print('Xs_roots: ', Xs_roots)
+            sublist_size = 100
+            rootChunks = [xroots[i:i+sublist_size] for i in range(0, len(xroots), sublist_size)]
+            
+            for i, rc in enumerate(rootChunks):
+                if len(clients) != len(rootChunks):
+                    client = self.getWorkers()
+                    clients.append(client)
+                
+                    print(f"Got client for chunk{i}")
+                    
+                else:
+                    print('Clients exist : ', len(clients))
+            
+            # Xs_roots = []
+            # for i, rc in tqdm(enumerate(rootChunks)):
+            Xs_roots = self.evalConfigs(clients, rootChunks, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            print(f"evalXsroots from joblib from chunk {i}",len(Xs_roots))
+            # Xs_roots.extend(evalXsroots)
 
             for x in Xs_roots:
                 print('$'*100)
@@ -341,10 +360,10 @@ class RolloutBO(BO_Interface):
                         minytrval = min(ia.y_train)
                         minytr = ia.y_train
             ytr = minytr
-            print('?'*100)  
-            print_tree(X_root, MAIN)
-            print_tree(X_root, ROLLOUT)
-            print('?'*100)
+            # print('?'*100)  
+            # print_tree(X_root, MAIN)
+            # print_tree(X_root, ROLLOUT)
+            # print('?'*100)
             x_opt_from_all = []
             for i,a in enumerate(agentsWithminSmps):
                 # minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
@@ -421,7 +440,7 @@ class RolloutBO(BO_Interface):
         return falsified, self.region_support , None #plot_dict
 
 
-
+    
     def getRootConfigs(self, X_root, rootModel, sample, num_agents, tf_dim, agentsWithminSmps):
         # Generate permutations of the numbers 0 to 3
         permutations_list = list(permutations(range(num_agents)))
@@ -437,7 +456,7 @@ class RolloutBO(BO_Interface):
                 for id, l in enumerate(root.find_leaves()):
                     l.setRoutine(MAIN)
                     if l.getStatus(MAIN) == 1:
-                        mainag = Agent(id, deepcopy(root.model), self.x_train, self.y_train, l)
+                        mainag = Agent(id, None, self.x_train, self.y_train, l)
                         mainag(MAIN)
                 roots.append(root)
                 
@@ -448,7 +467,6 @@ class RolloutBO(BO_Interface):
                 for id, l in enumerate(root.find_leaves()):
                     if l.getStatus(MAIN) == 1:
                         agents.append(l.agent)
-                    print(f'agent x_train b4 partitioning  ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
                 subregions = reassignUsingRewardDist( root, MAIN, agents, jump_prob=jump)
                 agents = partitionRegions(root, subregions, MAIN, dim)
                 print('after moving and partitioning ')
@@ -472,72 +490,22 @@ class RolloutBO(BO_Interface):
         # assert X_root.getVolume() == testv
         print('roots after dim: ', roots)
 
-        # permutations_list = permutations_list[:2]
-        # agents = []
-        # moreRoots = []
-        # for rt in roots:
-        #     print_tree(rt, MAIN)
-        #     for i in range(len(permutations_list)):
-        #         copyrts = deepcopy(rt)
-        #         moreRoots.append(copyrts)
-
-        # print('roots b4 perm: ', moreRoots)
-
-        # moreRoots = []
-        # agents = []
-        # nid = 0
-        # for rt in roots:
-        #     for perm in range(len(permutations_list)):
-        #         for id, l in enumerate(rt.find_leaves()):
-        #             l.setRoutine(MAIN)
-        #             nid = nid % num_agents
-        #             if l.getStatus(MAIN) == 1:
-        #                 if sample == 0:
-        #                     # print(idx, id,i, len(permutations_list))
-        #                     mainag = Agent(permutations_list[perm][nid], rootModel, self.x_train, self.y_train, l)
-        #                     mainag(MAIN)
-        #                     l.addAgentList(mainag, MAIN)
-        #                 else:
-        #                     l.agent.id = permutations_list[perm][nid]
-        #                     mainag = l.agent
-        #                 nid += 1
-        #                 agents.append(mainag)
-        #         moreRoots.append(deepcopy(rt))
-
-        # for idx, mrt in enumerate(moreRoots):        
-        #     # for perm in permutations_list:
-        #     # print_tree(mrt, MAIN)
-        #     idx = idx % len(permutations_list)
-        #     i = 0
-        #     for id, l in enumerate(mrt.find_leaves()):
-        #         l.setRoutine(MAIN)
-        #         if l.getStatus(MAIN) == 1:
-        #             if sample == 0:
-        #                 # print(idx, id,i, len(permutations_list))
-        #                 mainag = Agent(permutations_list[idx][i], rootModel, self.x_train, self.y_train, l)
-        #                 mainag(MAIN)
-        #                 l.addAgentList(mainag, MAIN)
-        #             else:
-        #                 l.agent.id = permutations_list[idx][i]
-        #                 mainag = l.agent
-        #             agents.append(mainag)
-        #             i += 1
-
-        # print('roots after perm: ', roots)
-        # for i in moreRoots:
-        #     print_tree(i, MAIN) 
-
-        # exit(1)
 
         return roots
-    
-    @profile
+
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-        self.ei_roll = RolloutEI()
+        # self.ei_roll = RolloutEI()
 
         # Define a helper function to be executed in parallel
         def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-            return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+            return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+        
+        # Serialize arguments
+        # args_list = [(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1), csmp) for csmp in range(configSamples)]
+        # serialized_args_list = [pickle.dumps(args) for args in args_list]
+
+        # # Execute the evaluation function in parallel
+        # results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(serialized_args) for serialized_args in tqdm(serialized_args_list))
 
         # Execute the evaluation function in parallel for each Xs_root item
         results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
@@ -546,6 +514,135 @@ class RolloutBO(BO_Interface):
         agents = [results[i][1] for i in range(configSamples)]
 
         return roots , agents
+    
+        
+    def getWorkers(self):
+        # cluster = SLURMCluster(cores=16, memory='20GB', queue='htc', walltime='04:00:00') # 16 cores 5GB 12 processes 45 min 15 workers | 25 workers , cores=32, memory='10GB', processes=30, queue='htc', walltime='00:45:00'
+        
+        cluster = SLURMCluster(walltime='24:00:00', memory='5 GB',queue='general', #processes=30,
+                    #   job_extra_directives=['--nodes=10','--ntasks-per-node=10']), #'--ntasks-per-node=20'
+                      cores=10)
+                       
+        # Scale the cluster to desired number of workers
+        cluster.scale(jobs = 30)  # Scale to 20 workers (adjust as needed)
+        # cluster.adapt(maximum_jobs=100)
+        # Connect a client to the cluster
+        client = Client(cluster)
+        
+        nb_workers = 0
+        while True:
+            nb_workers = len(client.scheduler_info()["workers"])
+            print('Got {} workers'.format(nb_workers))
+            if nb_workers >= 30:
+                break
+            time.sleep(1)
+        
+        return client
+        
+    
+    def evalConfigs(self, clients, Xs_roots, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        self.ei_roll = RolloutEI()
+        
+        
+        
+        
+        
+        
+        # Xs_root_scattered = client.scatter(Xs_root)
+        # print('Xs_root_scattered: ',len(Xs_root),Xs_root , Xs_root_scattered.result())
+        
+        def evaluate_in_parallel(Xs_root_item):
+            agents=[]
+            print('Xs_root_item: in evaluate_in_parallel ',Xs_root_item)
+            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+        
+        # results = []
+        # futures = []
+        # print('Xs_roots:',Xs_roots, clients)
+        # for client, Xs_root in zip(clients, Xs_roots): 
+        #     result = [dask.delayed(evaluate_in_parallel)(Xs_root_item) for Xs_root_item in tqdm(Xs_root)]
+        #     future = client.compute(result)
+        #     futures.append(future)
+        
+        # print('futures: ', futures)
+            
+        # for client, future in tqdm(zip(clients, futures)):
+        #     results.extend(client.gather(future))
+        
+        # for client, Xs_root in zip(clients, Xs_roots):    
+        futures = [client.map(evaluate_in_parallel, Xs_root_item) for client, Xs_root_item in tqdm(zip(clients, Xs_roots))]
+        # Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
+
+        # futures = client.map(evaluate_in_parallel, Xs_root) #[client.submit(evaluate_in_parallel, Xs_root_item) for Xs_root_item in Xs_root_scattered.result()]
+
+        # print('client:', client, futures)
+        results = []
+        
+        for client, future in tqdm(zip(clients, futures)):
+            print('Gathering !')
+            results.extend(client.gather(future))
+        # # Connect to Dask cluster
+        # # with Client(cluster) as client:  # Automatically connects to the default Dask cluster
+        #     # Scatter Xs_root to workers
+        # Xs_root_scattered = client.scatter(Xs_root)
+        
+        # # # Define a helper function to be executed in parallel
+        
+        # # # Use Dask as the backend for joblib
+        # # with parallel_backend('dask', scheduler_host=client.scheduler.address):
+        # #     parallel_config(backend='dask', wait_for_workers_timeout=3000)
+        # #     results = Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item) for Xs_root_item in tqdm(Xs_root_scattered))
+        
+        return results
+        
+    
+    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    #     self.ei_roll = RolloutEI()
+        
+    #     # Configure SLURMCluster
+
+        # cluster = SLURMCluster(cores=8, memory='20GB', processes=80, queue='htc', walltime='04:00:00') # 16 cores 5GB 12 processes 45 min 15 workers | 25 workers , cores=32, memory='10GB', processes=30, queue='htc', walltime='00:45:00'
+        
+        # # Scale the cluster to desired number of workers
+        # cluster.scale(25)  # Scale to 20 workers (adjust as needed)
+        # # cluster.adapt(maximum_jobs=100)
+        # # Connect a client to the cluster
+        # client = Client(cluster)
+        
+
+    
+    #     # Define a helper function to be executed in parallel
+    #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    #         agents = []  # Do you need to redefine agents here?
+    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+    
+    #     # Use Dask as the backend for joblib
+    #     with parallel_backend('dask', scheduler_host=client.scheduler.address):
+    #         dask.config.set({'distributed.worker.daemon': False})
+    #         parallel_config(backend='dask', wait_for_workers_timeout=10003500)
+            
+    #         results = Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
+
+    #     client.close()
+    #     cluster.close()
+        
+    #     return results
+    
+    # @profile
+    # def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+    #     self.ei_roll = RolloutEI()
+
+    #     # Define a helper function to be executed in parallel
+    #     def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+    #         return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+
+    #     # Execute the evaluation function in parallel for each Xs_root item
+    #     results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
+        
+    #     roots = [results[i][0] for i in range(configSamples)]
+    #     agents = [results[i][1] for i in range(configSamples)]
+
+    #     return roots , agents
     
     # @profile
     # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
@@ -573,123 +670,18 @@ class RolloutBO(BO_Interface):
     #     return results
     
     # @profile
-    def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-        self.ei_roll = RolloutEI()
-        # print('inside evalConfigs')
-        # Define a helper function to be executed in parallel
-        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-            # print('Xs_root_item in eval config : ',Xs_root_item)
-            agents = []
-            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-
-        # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
-
-        return results
-
-    # @profile
     # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
     #     self.ei_roll = RolloutEI()
-
-    #     # Set up a local cluster
-    #     # dask.config.set({'distributed.worker.daemon': False})
-    #     cluster = LocalCluster(processes=50)
-    #     client = Client(cluster)
-
-    #     # Retrieve logs from all workers
-    #     worker_logs = client.get_worker_logs()
-    
+    #     # print('inside evalConfigs')
     #     # Define a helper function to be executed in parallel
     #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #         agents = []  # Do you need to redefine agents here?
+    #         # print('Xs_root_item in eval config : ',Xs_root_item)
+    #         agents = []
     #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
-    #     # for worker, logs in worker_logs.items():
-    #     #     print(f"Logs from worker {worker}:")
-    #     #     for log in logs:
-    #     #         print(log)
-                
     #     # Execute the evaluation function in parallel for each Xs_root item
-    #     results = []
-    #     for Xs_root_item in tqdm(Xs_root):
-    #         result = client.submit(evaluate_in_parallel, Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
-    #         results.append(result)
-    
-    #     # Gather results
-    #     results = client.gather(results)
-    
-    #     # Close the client and cluster
-    #     client.close()
-    #     cluster.close()
-    
+    #     results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
+
     #     return results
-
-    def getWorkers(self):
-        cluster = LocalCluster(processes=1000)
-        cluster.scale(5) 
-        client = Client(cluster)
-        
-        nb_workers = 0
-        while True:
-            nb_workers = len(client.scheduler_info()["workers"])
-            print('Got {} workers'.format(nb_workers))
-            if nb_workers >= 5:
-                break
-            time.sleep(1)
-        
-        return client
-
-    # def evalConfigs(self, client, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #     self.ei_roll = RolloutEI()
-        
-    #     # Configure SLURMCluster
-
-    #     # cluster = SLURMCluster(cores=32, memory='10GB', processes=30, queue='htc', walltime='01:30:00') # 16 cores 5GB 12 processes 45 min 15 workers | 25 workers , cores=32, memory='10GB', processes=30, queue='htc', walltime='00:45:00'
-        
-    #     # # Scale the cluster to desired number of workers
-    #     # cluster.scale(25)  # Scale to 20 workers (adjust as needed)
-    #     # # cluster.adapt(maximum_jobs=100)
-    #     # # Connect a client to the cluster
-    #     # client = Client(cluster)
-        
-        
-
-    
-    #     # Define a helper function to be executed in parallel
-    #     def evaluate_in_parallel(Xs_root_item): #, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #         agents = []  # Do you need to redefine agents here?
-    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-    
-    #     # Use Dask as the backend for joblib
-    #     # with parallel_backend('dask', scheduler_host=client.scheduler.address):
-    #     #     dask.config.set({'distributed.worker.daemon': False})
-    #     #     parallel_config(backend='dask', wait_for_workers_timeout=500)
-            
-    #     #     results = Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
-
-    #     # print('Xs_roots:',Xs_roots, clients)
-    #     result = [dask.delayed(evaluate_in_parallel)(Xs_root_item) for Xs_root_item in tqdm(Xs_root)]
-    #     futures = client.compute(result)
-    #     print('futures: ', futures)
-    #     results = client.gather(futures)
-        
-    #     print(results)
-
-    #     # client.close()
-    #     # cluster.close()
-        
-    #     return results
-
-    def get_nextXY(self, agentmodels, minRewardIdx): #, rng, test_function, behavior):
-        agents = []
-        for i, minidx in enumerate(minRewardIdx):
-            agents.append(agentmodels[minidx][i])
-
-        return agents
-
-        # for a in agents:
-        #     x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng)
-        #     pred_sample_y, falsified = compute_robustness(x_opt, test_function, behavior, agent_sample=False)
-        
 
     

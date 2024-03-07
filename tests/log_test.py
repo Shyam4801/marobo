@@ -63,16 +63,16 @@ def logdf(data,jobid, init_samp,maxbud, name, yofmins, rollout=False):
         rl='rollout'
     else:
         rl = 'n'
-    timestmp = 'results/rastrigin/'+str(jobid)+'/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+    timestmp = 'results/'+str(jobid)+'/rollResults/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
     if not os.path.exists(timestmp):
         os.makedirs(timestmp)
     # tot_samples = xcoord['y'][:10]
     # tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
     # reduced_df = pd.DataFrame(tot_samples)
     dfdic = xcoord.iloc[:init_samp,:-2].to_dict()
-    initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
-    with open(initpath+f'/initsmp_{name}.pickle', 'wb') as handle:
-        pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
+    # with open(initpath+f'/initsmp_{name}.pickle', 'wb') as handle:
+    #     pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
     xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
@@ -201,7 +201,7 @@ class Test_internalBO(unittest.TestCase):
         bo = RolloutBO()
 
         init_samp = 100
-        maxbud = 102
+        maxbud = 130
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -689,8 +689,8 @@ class Test_internalBO(unittest.TestCase):
 
         
 
-        init_samp = 20
-        maxbud = 22
+        init_samp = 100
+        maxbud = 130
         name = Test_internalBO.griewank.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -743,8 +743,8 @@ class Test_internalBO(unittest.TestCase):
 
         
 
-        init_samp = 20
-        maxbud = 22
+        init_samp = 100
+        maxbud = 130
         name = Test_internalBO.griewank.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -776,6 +776,76 @@ class Test_internalBO(unittest.TestCase):
         print('_______________________________')
         print(minobs)
         
+
+
+    def langermann(self):
+        def internal_function(x, from_agent = None): # glob min at [6.99999997 8.99999999 3.99999999 1.99999998 7.99999998 0.99999997 5.99999998 2.99999999 4.99999998 1.99999997]
+                                                            #Function value at global minimum: -3.0000000000594165 | for 2D [2,1] f(x) = -3
+            m = 5
+            c = [1, 2, 5, 2, 3]
+            a = np.array([[3, 5, 2, 1, 7, 4, 9, 6, 8, 2],
+                        [5, 2, 1, 6, 4, 9, 3, 8, 2, 7],
+                        [8, 6, 7, 2, 5, 3, 1, 9, 4, 2],
+                        [6, 1, 9, 3, 8, 7, 4, 2, 5, 2],
+                        [7, 9, 4, 2, 8, 1, 6, 3, 5, 2]])
+            pi = np.pi
+            
+            sum1 = 0
+            for i in range(m):
+                sum2 = 0
+                for j in range(len(x)):
+                    sum2 += (x[j] - a[i][j])**2
+                sum1 -= c[i] * np.exp(-1/np.pi * sum2) * np.cos(np.pi * sum2)
+            
+            return sum1
+        
+        range_array = np.array([[0, 10]])  
+        region_support = np.tile(range_array, (10, 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
+        # glob_mins=[]
+        seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        
+
+        init_samp = 100
+        maxbud = 130
+        name = Test_internalBO.griewank.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
 
 if __name__ == "__main__":
     unittest.main()

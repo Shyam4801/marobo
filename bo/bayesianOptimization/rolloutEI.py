@@ -40,7 +40,11 @@ from ..utils.savestuff import *
 from ..agent.prior import Prior
 
 from dask.distributed import Client, LocalCluster
+from dask_jobqueue import SLURMCluster
+from joblib import parallel_backend, parallel_config
+
 import dask
+import joblib
 
 def logrolldf(xtr,ytr,aidx,h,init_samp, mc, rollout=True):
     # df = pd.DataFrame(np.array(data.history, dtype='object'))
@@ -183,22 +187,22 @@ class RolloutEI(InternalBO):
 
             lv.resetStatus()
             if lv.getStatus(MAIN) == 1:
-                print('lv.xtr.all() == lv.agent.x_train.all(): ',lv.xtr.all() == lv.agent.x_train.all())
-                print('xtr ytr : ',lv.input_space,lv.agent.x_train,lv.agent.y_train)
+                # print('lv.xtr.all() == lv.agent.x_train.all(): ',lv.xtr.all() == lv.agent.x_train.all())
+                # print('xtr ytr : ',lv.input_space,lv.agent.x_train,lv.agent.y_train)
                 assert lv.xtr.all() == lv.agent.x_train.all()
                 assert lv.agent.x_train.all() == lv.agent.simXtrain.all()
                 # ag = Agent(gpr_model, xtr, ytr, l)
                 # ag(MAIN)
                 agents.append(lv.agent)
                 # print('- START '*100)
-                savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
                 # print(lv)
                 # print(lv.__dict__)
                 # print('.'*100)
                 # print(lv.agent)
                 # print(lv.agent.__dict__)
                 # print('-START'*100)
-                savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
             # else:
             #     lv.smpXtr = []
             #     lv.smpYtr = []
@@ -256,18 +260,46 @@ class RolloutEI(InternalBO):
     def _evaluate_at_point_list_dask(self, agents):
         self.ei_roll = RolloutEI()
         self.agents = agents
-        serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
-        # Set up a local cluster
-        dask.config.set({'distributed.worker.daemon': False})
-        cluster = LocalCluster()
-        client = Client(cluster)
+        serial_mc_iters = [int(int(self.mc_iters)/8)] * 8 #self.numthreads
+        print('serial_mc_iters in _evaluate_at_point_list_dask: ', serial_mc_iters)
+        Xs_root = [self]*len(serial_mc_iters)
+        # Configure SLURMCluster
 
+        cluster = SLURMCluster(cores=128, memory='15GB', processes= 1, queue='htc', walltime='01:00:00') # 16 cores 2GB 8 processes 30 min 10 workers  | 15 workers, cores=16, memory='7GB', processes= 80, queue='htc', walltime='00:15:00'
+    
+        # Scale the cluster to desired number of workers
+        cluster.scale(5)
+        # cluster.adapt(maximum_jobs=100)
+        client = Client(cluster)
+        # client.scatter(Xs_root)
+        # client.scatter(serial_mc_iters)
         # Retrieve logs from all workers
         worker_logs = client.get_worker_logs()
-    
+        
         # Define a helper function to be executed in parallel
-        def evaluate_in_parallel(Xs_root_item, serial_mc_iters):
-            return unwrap_self((Xs_root_item, serial_mc_iters))
+        # def eval_in_parallel(Xs_root_item, serial_mc_iters):
+        #     res = []
+        #     for Xs, iters in zip(Xs_root_item, serial_mc_iters):
+        #         res.append(unwrap_self((Xs, iters)))
+        #     return res
+            
+        with parallel_backend('dask', scheduler_host=client.scheduler.address):
+            dask.config.set({'distributed.worker.daemon': False})
+            parallel_config(backend='dask', wait_for_workers_timeout=300)
+            
+            results = Parallel(n_jobs= -1,verbose=100)\
+            (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
+            
+        # results = []
+        
+        # # for idx, Xs_root_item in enumerate(Xs_root):
+        # result_future = client.submit(eval_in_parallel, Xs_root, serial_mc_iters)
+        #     # results.append(result)
+            
+        # wait(result_future)
+    
+        # # Retrieve the result
+        # results = result_future.result()
         
         # for worker, logs in worker_logs.items():
         #     print(f"Logs from worker {worker}:")
@@ -275,14 +307,10 @@ class RolloutEI(InternalBO):
         #         print(log)
                 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = []
-        Xs_root = [self]*len(serial_mc_iters)
-        for Xs_root_item in tqdm(Xs_root):
-            result = client.submit(evaluate_in_parallel, Xs_root_item, 1)
-            results.append(result)
+        
     
         # Gather results
-        results = client.gather(results)
+        # results = client.gather(results)
     
         # Close the client and cluster
         client.close()
@@ -307,13 +335,13 @@ class RolloutEI(InternalBO):
         self.root.setAvgRewards(fin)
 
         return self.root
-        # return results
     
     def _evaluate_at_point_list(self, agents):
         results = []
         self.agents = agents
-        serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
-        # print('serial_mc_iters using job lib',serial_mc_iters)
+        serial_mc_iters = [int(int(self.mc_iters)/8)] * 8
+        # serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
+        print('serial_mc_iters using job lib',serial_mc_iters)
         results = Parallel(n_jobs= -1, backend="loky")\
             (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
         # print('_evaluate_at_point_list results',results)
@@ -396,7 +424,7 @@ class RolloutEI(InternalBO):
                 # sima.avgsmpYtr = sima.avgsmpYtr[1:]
                 sima.avgsmpYtr = np.sum(sima.avgsmpYtr, axis=0)
                 sima.avgsmpXtr = commonX #Xtr
-                print('Accumulated sum of Samples : ',sima.input_space,sima.avgsmpXtr, sima.avgsmpYtr)
+                # print('Accumulated sum of Samples : ',sima.input_space,sima.avgsmpXtr, sima.avgsmpYtr)
                 sima.smpYtr = deepcopy(sima.mcsmpYtr)
                 sima.smpXtr = deepcopy(sima.mcsmpXtr)
                 
@@ -452,7 +480,7 @@ class RolloutEI(InternalBO):
             # lf[i].smpXtr = smpXtr
             # assert lf[i].smpXtr.shape[0] == len(Ytr)
             lf[i].smpYtr = lf[i].avgsmpYtr
-            print('lf[i].smpYtr: ', lf[i].input_space, lf[i].smpYtr)
+            # print('lf[i].smpYtr: ', lf[i].input_space, lf[i].smpYtr)
             print('--------------------------------------')
             # if lf[i].mainStatus == 1:
             #     print('final mc iteration :', lf[i].smpYtr, lf[i].smpYtr)
@@ -706,7 +734,7 @@ class RolloutEI(InternalBO):
                 # simPrior = Prior(agent.simXtrain, agent.simYtrain, agent.simModel, ROLLOUT)
                 agent.simReg.addFootprint(agent.simXtrain, agent.simYtrain, agent.simModel)
                 agent.simReg.model = deepcopy(agent.simModel)
-                savetotxt(self.savetxtpath+f'rl_h{h}_agent_{aidx}', agent.__dict__)
+                # savetotxt(self.savetxtpath+f'rl_h{h}_agent_{aidx}', agent.__dict__)
                 # assert agent.simReg.checkFootprint() == True
                 
                 # smp = sample_from_discontinuous_region(10*self.tf_dim, [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
