@@ -195,7 +195,7 @@ class Test_internalBO(unittest.TestCase):
         
         sd = int(time.time())
         # seeds.append(sd)
-        seed = task_id + 2#12345
+        seed = task_id#12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()

@@ -891,9 +891,12 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     assert check_points(a, ROLLOUT) == True
                     # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
+                    # print('tf : ', tf)
                     xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
                     
+                    # print('callable ? ')
                     x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
+                    # print('xopt callable ? ')
                     x_opt = np.asarray([x_opt])
                     mu, std = ei._surrogate(a.model, x_opt)
                     f_xt = np.random.normal(mu,std,1)

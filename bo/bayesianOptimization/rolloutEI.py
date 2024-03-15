@@ -152,12 +152,12 @@ class RolloutEI(InternalBO):
         self.num_agents = num_agents
         self.sample = sample
 
-        if not os.path.exists('results/'+configs['testfunc']+'/nodes'):
-            os.makedirs('results/'+configs['testfunc']+'/nodes')
-            os.makedirs('results/'+configs['testfunc']+'/reghist')
+        # if not os.path.exists('results/'+configs['testfunc']+'/nodes'):
+        #     os.makedirs('results/'+configs['testfunc']+'/nodes')
+        #     os.makedirs('results/'+configs['testfunc']+'/reghist')
             
-        if not os.path.exists(f'results/dict/iter_{sample}'):
-            os.makedirs(f'results/dict/iter_{sample}')
+        # if not os.path.exists(f'results/dict/iter_{sample}'):
+        #     os.makedirs(f'results/dict/iter_{sample}')
         
         self.savetxtpath = f'results/dict/iter_{sample}/'
 
@@ -249,7 +249,8 @@ class RolloutEI(InternalBO):
     def get_exp_values(self, agents):
         self.agents = agents
         if not configs['parallel']:
-            self.root = self.get_pt_reward(2)
+            print('Not using joblib')
+            self.root = self.get_pt_reward(self.mc_iters)
         else:
             self.root = self._evaluate_at_point_list(agents)
         # print("Tree after MC iters get_exp_values: ")
@@ -342,7 +343,7 @@ class RolloutEI(InternalBO):
         serial_mc_iters = [int(int(self.mc_iters)/8)] * 8
         # serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
         print('serial_mc_iters using job lib',serial_mc_iters)
-        results = Parallel(n_jobs= -1, backend="loky")\
+        results = Parallel(n_jobs= 8, backend="loky",verbose=100)\
             (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
         # print('_evaluate_at_point_list results',results)
         # for i in results:
@@ -739,7 +740,7 @@ class RolloutEI(InternalBO):
                 
                 # smp = sample_from_discontinuous_region(10*self.tf_dim, [reg], totalVolume, self.tf_dim, self.rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                 # print('a.simReg.rewardDist: ',self.mc, a.id, a.simReg.rewardDist[a.id])
-                writetocsv(f'results/'+configs['testfunc']+f'/reghist/SimA_{agent.id}', [[self.sample, self.mc, agent.id, agent.simReg.input_space.tolist(), min(agent.simReg.rewardDist.tolist()), np.argmin(agent.simReg.rewardDist.tolist())]])
+                # writetocsv(f'results/'+configs['testfunc']+f'/reghist/SimA_{agent.id}', [[self.sample, self.mc, agent.id, agent.simReg.input_space.tolist(), min(agent.simReg.rewardDist.tolist()), np.argmin(agent.simReg.rewardDist.tolist())]])
             #     next_xt = self._opt_acquisition(globytr, agent.simModel,agent.simReg.input_space,self.rng)
             #     next_xt = np.asarray([next_xt])
             #     mu, std = self._surrogate(agent.simModel, next_xt)

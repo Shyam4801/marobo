@@ -34,14 +34,10 @@ from ..utils.plotlyExport import exportTreeUsingPlotly
 #from mpi4py import MPI
 from dask.distributed import Client, LocalCluster
 from dask_jobqueue import SLURMCluster
-from joblib import parallel_backend, parallel_config
-
 
 
 import joblib
 import dask
-import time
-
 
 
 with open('config.yml', 'r') as file:
@@ -98,11 +94,6 @@ def find_min_among_diagonal_matrix(matrix):
 
 def unwrap_self(arg, **kwarg):
     return RolloutBO.evalConfigs(*arg, **kwarg)
-
-def genSamples_in_parallel(serialized_args):
-    num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng, csmp = pickle.loads(serialized_args)
-    return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
-
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -210,15 +201,12 @@ class RolloutBO(BO_Interface):
         
         globalXtrain = x_train #globalXtrain[1:]
         globalYtrain = y_train #globalYtrain[1:]
-        # if not os.path.exists(f'results/'+configs['testfunc']):
-        #     os.makedirs(f'results/'+configs['testfunc'])
-        # writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])
+        if not os.path.exists(f'results/'+configs['testfunc']):
+            os.makedirs(f'results/'+configs['testfunc'])
+        writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])
 
         agentAftereachSample = []
         agentsWithminSmps = 0
-        agdic = {0:0,1:0,2:0,3:0}
-        clients = []
-
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalYtrain))
             # for sample in tqdm(range(num_samples)):
@@ -260,24 +248,10 @@ class RolloutBO(BO_Interface):
                     
             # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
             print('xroots and agents b4 joblib : ', len(xroots), len(agentModels))
-            # sublist_size = 100
-            # rootChunks = [xroots[i:i+sublist_size] for i in range(0, len(xroots), sublist_size)]
-            
-            # for i, rc in enumerate(rootChunks):
-            #     if len(clients) != len(rootChunks):
-            #         client = self.getWorkers()
-            #         clients.append(client)
-                
-            #         print(f"Got client for chunk{i}")
-                    
-            #     else:
-            #         print('Clients exist : ', len(clients))
-            
-            # Xs_roots = []
-            # for i, rc in tqdm(enumerate(rootChunks)):
-            Xs_roots = self.evalConfigsJlib(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
-            print(f"evalXsroots from joblib",len(Xs_roots))
-            # Xs_roots.extend(evalXsroots)
+            Xs_roots = self.evalConfigs(xroots, sample, agentModels, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            print("Xs_root from joblib ",len(Xs_roots))
+            # save_node(Xs_roots, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/Xs_roots_{sample}.pkl')
+            # exit(1)
 
             for x in Xs_roots:
                 print('$'*100)
@@ -285,8 +259,8 @@ class RolloutBO(BO_Interface):
                 print('$'*100)
                 agents = [] #x[2]
                 for id, l in enumerate(x[1].find_leaves()):
-                        if l.getStatus(MAIN) == 1:
-                            agents.append(l.agent)
+                    if l.getStatus(MAIN) == 1:
+                        agents.append(l.agent)
                 # exit(1)
                 # for smp in range(samples):
                     # self.smp = smp
@@ -334,22 +308,9 @@ class RolloutBO(BO_Interface):
             agentsWithminSmps = sorted(agentsWithminSmps, key=lambda x: x.id)
 
             # partition the actual obs 
-            # agentsWithminSmps = splitObs(agentsWithminSmps, tf_dim, rng, ACTUAL, self.tf, self.behavior)
+            agentsWithminSmps = splitObs(agentsWithminSmps, tf_dim, rng, ACTUAL, self.tf, self.behavior)
             #get the corresponding Xroot
             X_root = Xs_roots[mincumRewardIdx][1] #xroots[mincumRewardIdx]
-
-            # for a in agentsWithminSmps:
-            #     minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
-            #     miny = np.min(a.region_support.smpYtr)
-            #     miny , _ = compute_robustness(np.array([minx]), test_function, behavior, agent_sample=True)
-            #     # print(a.x_train, a.y_train)
-            #     # print('a.x_train.all() == a.ActualXtrain.all() ',a.x_train, a.ActualXtrain)
-            #     # a.resetActual()
-
-            #     a.x_train = np.vstack((a.x_train, minx))
-            #     a.y_train = np.hstack((a.y_train, miny))
-
-            #     a.updateModel()
 
             minytrval = float('inf')
             minytr = []
@@ -360,43 +321,30 @@ class RolloutBO(BO_Interface):
                         minytrval = min(ia.y_train)
                         minytr = ia.y_train
             ytr = minytr
-            # print('?'*100)  
-            # print_tree(X_root, MAIN)
-            # print_tree(X_root, ROLLOUT)
-            # print('?'*100)
+
             x_opt_from_all = []
-            for i,a in enumerate(agentsWithminSmps):
-                # minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
-                # miny = np.min(a.region_support.smpYtr)
-                # miny , _ = compute_robustness(np.array([minx]), test_function, behavior, agent_sample=True)
-                # # print(a.x_train, a.y_train)
-                # # print('a.x_train.all() == a.ActualXtrain.all() ',a.x_train, a.ActualXtrain)
-                # # a.resetActual()
+            for a in agentsWithminSmps:
+                minx = a.x_train[np.argmin(a.y_train),:]
+                miny = np.min(a.y_train)
+                print(a.x_train, a.y_train)
+                print('minx , miny: ', minx, miny)
+                a.resetActual()
 
-                # a.x_train = np.vstack((a.x_train, minx))
-                # a.y_train = np.hstack((a.y_train, miny))
+                a.x_train = np.vstack((a.x_train, minx))
+                a.y_train = np.hstack((a.y_train, miny))
 
-                # a.updateModel()
-                # assert a.x_train.all() == a.ActualXtrain.all()
-                # print('after rest actual : ', a.id, a.x_train, a.y_train)
+                a.updateModel()
+                assert a.x_train.all() == a.ActualXtrain.all()
+                print('after rest actual : ', a.id, a.x_train, a.y_train)
                 #get the new set of points by EI
                 assert check_points(a, MAIN) == True
                 x_opt = self.ei_roll._opt_acquisition(ytr, a.model, a.region_support.input_space, rng)
                 yofEI, _ = compute_robustness(np.array([x_opt]), test_function, behavior, agent_sample=True)
-
-                print('end of rollout avg smps check ', a.region_support.input_space ,a.region_support.smpXtr, a.region_support.smpYtr)
-                # print('end of rollout smps check ', a.region_support.avgsmpXtr, a.region_support.avgsmpYtr)
-                smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
-                yofsmpxtr, _ = compute_robustness(np.array([smpxtr]), test_function, behavior, agent_sample=True) #np.array([smpxtr])
-                
-                print('yofEI, miny: ',x_opt, yofEI, smpxtr, yofsmpxtr)
-                if yofEI > yofsmpxtr:
-                # x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
-                    x_opt = smpxtr
-                else:
-                    agdic[i] +=  1
+                print('yofEI, miny: ',yofEI, miny)
+                if yofEI > miny:
+                    x_opt = minx
                 x_opt_from_all.append(x_opt)
-            # exit(1)
+
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
             pred_sample_x = subx[:num_agents]
 
@@ -411,20 +359,132 @@ class RolloutBO(BO_Interface):
             print('min obs so far : ', pred_sample_x[np.argmin(pred_sample_y),:], np.min(pred_sample_y))
 
             for i,a in enumerate(agentsWithminSmps):
-                # a.resetActual()
-                # a.ActualXtrain = np.vstack((a.ActualXtrain, np.asarray([pred_sample_x[i]])))
-                # a.ActualYtrain = np.hstack((a.ActualYtrain, pred_sample_y[i]))
-                a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
-                a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
-                a.updateModel()
-                # a.resetActual()
+                a.ActualXtrain = np.vstack((a.ActualXtrain, np.asarray([pred_sample_x[i]])))
+                a.ActualYtrain = np.hstack((a.ActualYtrain, pred_sample_y[i]))
                 # add actual footprint 
                 # actPrior = Prior(a.ActualXtrain, a.ActualXtrain, a.model, MAIN)
-                a.region_support.addFootprint(a.x_train, a.y_train, a.model)
-                # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
+                a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
             
             print_tree(X_root, MAIN)
             # exit(1)
+            # print('b4 reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
+            # jump = random.random()
+            # subregions = reassignUsingRewardDist( X_root, MAIN, agentsWithminSmps, jump_prob=jump)
+            # agentsWithminSmps = partitionRegions(X_root, subregions, MAIN)
+            # print('after reward dist : ', [i.region_support.input_space for i in agentsWithminSmps])
+            # print('agentsWithminSmps after partition : ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
+            # # x_opt_from_all = []
+
+            # # agentsWithminSmps = splitObs(agentsWithminSmps, tf_dim, rng, MAIN, self.tf, self.behavior)
+            # # for a in agentsWithminSmps:
+            # #     print('obs after splitting :', a.x_train, a.y_train , a.id)
+
+            # # minytrval = float('inf')
+            # # minytr = []
+            # # for ix, a in enumerate(agentsWithminSmps):
+            # #     model = a.model
+            # #     for ia in agents:
+            # #         if min(ia.y_train) < minytrval:
+            # #             minytrval = min(ia.y_train)
+            # #             minytr = ia.y_train
+            # # ytr = minytr
+            # # agentminytr = float('inf')
+            # # agentminxtr = None
+            # # assert len(agentsWithminSmps) == num_agents
+            # # for a in agentsWithminSmps:
+            # #     assert check_points(a, MAIN) == True
+            # #     x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng)
+            # #     x_opt_from_all.append(x_opt)
+            # #     # check_pred_y, falsified = compute_robustness(x_opt, test_function, behavior, agent_sample=True)
+            # #     # idx = int(init_budget/num_agents)
+            # #     # if np.min(a.y_train[idx:]) < check_pred_y:
+            # #     #     x_opt_from_all.append(a.x_train[idx:][np.argmin(a.y_train[idx:]),:])
+            # #     # else:
+            # #     #     x_opt_from_all.append(x_opt)
+            # #         # agentminytr = np.min(a.y_train)
+            # #         # agentminxtr = a.x_train[np.argmin(a.y_train),:]
+
+            # # subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
+            # # pred_sample_x = subx[:num_agents]
+
+            
+            # # pred_sample_y, falsified = compute_robustness(pred_sample_x, test_function, behavior, agent_sample=False)
+            # # # if pred_sample_y > agentminytr:
+
+
+            # # print('pred_sample_x, pred_sample_y: ', pred_sample_x, pred_sample_y)
+            # # globalXtrain = np.vstack((globalXtrain, pred_sample_x))
+            # # globalYtrain = np.hstack((globalYtrain, (pred_sample_y)))
+            # # print('min obs so far : ', pred_sample_x[np.argmin(pred_sample_y),:], np.min(pred_sample_y))
+            # # print('np.asarray([pred_sample_x[i]]).shape : ', np.asarray([pred_sample_x[0]]).shape)
+            # assignments=[]
+            # assignmentsDict=[]
+            # status = []
+
+            # # finalAgentsmodel = GPR(gpr_model)
+            # # finalAgentsmodel.fit(pred_sample_x, pred_sample_y)
+            # # local_xopt = self.ei_roll._opt_acquisition(ytr, finalAgentsmodel, a.region_support.input_space, rng)
+            # # local_yopt, falsified = compute_robustness(local_xopt, test_function, behavior, agent_sample=False)
+            # # print('local_xopt: ',local_xopt, local_yopt)
+            
+            # for i,a in enumerate(agentsWithminSmps):
+            # #     # x_opt = self.ei_roll._opt_acquisition(globalYtrain, model, a.region_support.input_space, rng) 
+            # #     # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=True)
+            # #     # actregSamples = uniform_sampling(tf_dim*10, a.region_support.input_space, tf_dim, rng)
+            # #     # pred_act, falsified = compute_robustness(actregSamples, test_function, behavior, agent_sample=True)
+            # #     # # mu, std = self._surrogate(a.model, actregSamples)
+            # #     # # actY = []
+            # #     # # for i in range(len(actregSamples)):
+            # #     # #     f_xt = np.random.normal(mu[i],std[i],1)
+            # #     # #     actY.append(f_xt)
+            # #     # # actY = np.hstack((actY))
+            # #     # # # # print('act Y ',actY)
+            # #     # # a.x_train = actregSamples #np.vstack((agent.simXtrain , actregSamples))
+            # #     # # a.y_train = actY #np.hstack((agent.simYtrain, actY))
+            # #     # # a.updateModel()
+            # #     # # print(f'b4 appendign agent {i} xtrain :', a.x_train)
+            # #     # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
+            # #     # a.y_train = np.hstack((a.y_train, pred_xopt))
+
+            #     # a.x_train = np.vstack((a.x_train, np.asarray([pred_sample_x[i]])))
+            #     # a.y_train = np.hstack((a.y_train, pred_sample_y[i]))
+            # #     # a.model = a.simModel
+            #     # a.updateModel()
+            # #     # globalXtrain = np.vstack((globalXtrain, np.asarray(x_opt)))
+            # #     # globalYtrain = np.hstack((globalYtrain, pred_xopt))
+            # #     # x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng) 
+            # #     # pred_xopt, falsified = compute_robustness(np.asarray([x_opt]), test_function, behavior, agent_sample=False)
+            # #     # a.x_train = np.vstack((a.x_train, np.asarray(x_opt)))
+            # #     # a.y_train = np.hstack((a.y_train, pred_xopt))
+            # #     # print('a.id: ', a.id)
+            # #     # print('agent rewards after main :', a.region_support.input_space , a.region_support.avgRewardDist, 'print(a.getStatus(MAIN)): ',(a.region_support.getStatus(MAIN)))
+                
+            #     a.resetRegions()
+            # #     # a(MAIN)
+            #     # a.resetAgentList(MAIN)
+            #     if a.region_support.getStatus(MAIN) == 0:
+            #         a.region_support.agentList = []
+            #     a.region_support.resetavgRewardDist(num_agents)
+            # #     # writetocsv(f'results/reghist/a{i}_{sample}',a.regHist)
+            # #     maintrace.append(a.simregHist)
+            # #     print(f'a.simregHist: {sample}',a.simregHist)
+                
+            #     a.resetModel()
+            #     # print('agent rewards after reset :', a.region_support.input_space , a.region_support.avgRewardDist)
+                # assignments.append(a.region_support)
+                # assignmentsDict.append(a.region_support.input_space)
+                # status.append(a.region_support.mainStatus)
+
+        # #     # print('pred_sample_x, pred_sample_y: ', globalXtrain[-num_agents:], globalYtrain[-num_agents:])
+        # #     # print('min obs so far : ', globalXtrain[-num_agents:][np.argmin(globalYtrain[-num_agents:]),:], np.min(globalYtrain[-num_agents:]))
+        #     self.assignments.append(assignments)
+        #     self.assignmentsDict.append(assignmentsDict)
+        #     agentAftereachSample.append([(i.x_train, i.y_train) for i in agents])
+        # #     pred_sample_x = globalXtrain[-num_agents:]
+        # #     # print('shape : ',len(self.assignments))
+        # #     # print('final agent regions in rolloutBO', [i[j].input_space for i in self.assignments for j in range(4)])
+        #     self.status.append(status)
+
         #     inactive_subregion_samples = []   
         #     self.agent_point_hist.extend(pred_sample_x)
         # #     # writetocsv(f'results/reghist/aSim{i}_{sample}',a.simregHist)
@@ -434,13 +494,10 @@ class RolloutBO(BO_Interface):
         
         # # print(plot_dict)
         # save_node(save_plot_dict, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/plot_dict.pkl')
-        print()
-        print('times when EI pt was chosen',agdic)
-        print()
         return falsified, self.region_support , None #plot_dict
 
 
-    
+
     def getRootConfigs(self, X_root, rootModel, sample, num_agents, tf_dim, agentsWithminSmps):
         # Generate permutations of the numbers 0 to 3
         permutations_list = list(permutations(range(num_agents)))
@@ -490,6 +547,62 @@ class RolloutBO(BO_Interface):
         # assert X_root.getVolume() == testv
         print('roots after dim: ', roots)
 
+        # permutations_list = permutations_list[:2]
+        # agents = []
+        # moreRoots = []
+        # for rt in roots:
+        #     print_tree(rt, MAIN)
+        #     for i in range(len(permutations_list)):
+        #         copyrts = deepcopy(rt)
+        #         moreRoots.append(copyrts)
+
+        # print('roots b4 perm: ', moreRoots)
+
+        # moreRoots = []
+        # agents = []
+        # nid = 0
+        # for rt in roots:
+        #     for perm in range(len(permutations_list)):
+        #         for id, l in enumerate(rt.find_leaves()):
+        #             l.setRoutine(MAIN)
+        #             nid = nid % num_agents
+        #             if l.getStatus(MAIN) == 1:
+        #                 if sample == 0:
+        #                     # print(idx, id,i, len(permutations_list))
+        #                     mainag = Agent(permutations_list[perm][nid], rootModel, self.x_train, self.y_train, l)
+        #                     mainag(MAIN)
+        #                     l.addAgentList(mainag, MAIN)
+        #                 else:
+        #                     l.agent.id = permutations_list[perm][nid]
+        #                     mainag = l.agent
+        #                 nid += 1
+        #                 agents.append(mainag)
+        #         moreRoots.append(deepcopy(rt))
+
+        # for idx, mrt in enumerate(moreRoots):        
+        #     # for perm in permutations_list:
+        #     # print_tree(mrt, MAIN)
+        #     idx = idx % len(permutations_list)
+        #     i = 0
+        #     for id, l in enumerate(mrt.find_leaves()):
+        #         l.setRoutine(MAIN)
+        #         if l.getStatus(MAIN) == 1:
+        #             if sample == 0:
+        #                 # print(idx, id,i, len(permutations_list))
+        #                 mainag = Agent(permutations_list[idx][i], rootModel, self.x_train, self.y_train, l)
+        #                 mainag(MAIN)
+        #                 l.addAgentList(mainag, MAIN)
+        #             else:
+        #                 l.agent.id = permutations_list[idx][i]
+        #                 mainag = l.agent
+        #             agents.append(mainag)
+        #             i += 1
+
+        # print('roots after perm: ', roots)
+        # for i in moreRoots:
+        #     print_tree(i, MAIN) 
+
+        # exit(1)
 
         return roots
 
@@ -497,213 +610,116 @@ class RolloutBO(BO_Interface):
         self.ei_roll = RolloutEI()
 
         # Define a helper function to be executed in parallel
-        def genSamples_in_parallel(rng):
-            return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
-        
-        # Serialize arguments
-        # args_list = [(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1), csmp) for csmp in range(configSamples)]
-        # serialized_args_list = [pickle.dumps(args) for args in args_list]
-
-        # # Execute the evaluation function in parallel
-        # results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(serialized_args) for serialized_args in tqdm(serialized_args_list))
+        def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+            return genSamplesForConfigs(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=64)(delayed(genSamples_in_parallel)(np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
+        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
         
         roots = [results[i][0] for i in range(configSamples)]
         agents = [results[i][1] for i in range(configSamples)]
 
         return roots , agents
     
-        
-    def getWorkers(self):
-        # cluster = SLURMCluster(cores=16, memory='20GB', queue='htc', walltime='04:00:00') # 16 cores 5GB 12 processes 45 min 15 workers | 25 workers , cores=32, memory='10GB', processes=30, queue='htc', walltime='00:45:00'
-        
-        cluster = SLURMCluster(walltime='24:00:00', memory='5 GB',queue='general', #processes=30,
-                    #   job_extra_directives=['--nodes=10','--ntasks-per-node=10']), #'--ntasks-per-node=20'
-                      cores=10)
-                       
-        # Scale the cluster to desired number of workers
-        cluster.scale(jobs = 30)  # Scale to 20 workers (adjust as needed)
-        # cluster.adapt(maximum_jobs=100)
-        # Connect a client to the cluster
-        client = Client(cluster)
-        
-        nb_workers = 0
-        while True:
-            nb_workers = len(client.scheduler_info()["workers"])
-            print('Got {} workers'.format(nb_workers))
-            if nb_workers >= 30:
-                break
-            time.sleep(1)
-        
-        return client
-        
     
-    def evalConfigs(self, clients, Xs_roots, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+    def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
         self.ei_roll = RolloutEI()
-        
-        
-        
-        
-        
-        
-        # Xs_root_scattered = client.scatter(Xs_root)
-        # print('Xs_root_scattered: ',len(Xs_root),Xs_root , Xs_root_scattered.result())
-        
-        def evaluate_in_parallel(Xs_root_item):
-            agents=[]
-            print('Xs_root_item: in evaluate_in_parallel ',Xs_root_item)
-            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-        
-        # results = []
-        # futures = []
-        # print('Xs_roots:',Xs_roots, clients)
-        # for client, Xs_root in zip(clients, Xs_roots): 
-        #     result = [dask.delayed(evaluate_in_parallel)(Xs_root_item) for Xs_root_item in tqdm(Xs_root)]
-        #     future = client.compute(result)
-        #     futures.append(future)
-        
-        # print('futures: ', futures)
-            
-        # for client, future in tqdm(zip(clients, futures)):
-        #     results.extend(client.gather(future))
-        
-        # for client, Xs_root in zip(clients, Xs_roots):    
-        futures = [client.map(evaluate_in_parallel, Xs_root_item) for client, Xs_root_item in tqdm(zip(clients, Xs_roots))]
-        # Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
 
-        # futures = client.map(evaluate_in_parallel, Xs_root) #[client.submit(evaluate_in_parallel, Xs_root_item) for Xs_root_item in Xs_root_scattered.result()]
-
-        # print('client:', client, futures)
-        results = []
-        
-        for client, future in tqdm(zip(clients, futures)):
-            print('Gathering !')
-            results.extend(client.gather(future))
-        # # Connect to Dask cluster
-        # # with Client(cluster) as client:  # Automatically connects to the default Dask cluster
-        #     # Scatter Xs_root to workers
-        # Xs_root_scattered = client.scatter(Xs_root)
-        
-        # # # Define a helper function to be executed in parallel
-        
-        # # # Use Dask as the backend for joblib
-        # # with parallel_backend('dask', scheduler_host=client.scheduler.address):
-        # #     parallel_config(backend='dask', wait_for_workers_timeout=3000)
-        # #     results = Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item) for Xs_root_item in tqdm(Xs_root_scattered))
-        
-        return results
-        
+        # Configure SLURMCluster
+        cluster = SLURMCluster(cores=10, memory='2GB', processes=1, queue='shyam', walltime='01:00:00')
     
-    def evalConfigsJlib(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-        # ei_roll = RolloutEI()
+        # Scale the cluster to desired number of workers
+        cluster.scale(10)  # Scale to 20 workers (adjust as needed)
+        
+        client = Client(cluster)
+    
+        # Define a helper function to be executed in parallel
+        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+            agents = []  # Do you need to redefine agents here?
+            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+    
+        # Execute the evaluation function in parallel for each Xs_root item
+        results = []
+        for Xs_root_item in tqdm(Xs_root):
+            result = client.submit(evaluate_in_parallel, Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            results.append(result)
+            
+        # Capture profiling information
+        profile = client.profile(start=0, filename='dask-profile.html')
+
+        # Gather results
+        results = client.gather(results)
+    
+        # Close the client and cluster
+        client.close()
+        cluster.close()
+    
+        return results
+    
+
+    '''def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        self.ei_roll = RolloutEI()
         # print('inside evalConfigs')
         # Define a helper function to be executed in parallel
-        def evaluate_in_parallel(Xs_root_item): #, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-            ei_roll = RolloutEI()
-            print('Xs_root_item in eval config : ',ei_roll) #(Xs_root_item, sample, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng))
+        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+            # print('Xs_root_item in eval config : ',Xs_root_item)
             agents = []
-            return ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        # results = Parallel(n_jobs=300, prefer="threads", verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for Xs_root_item in tqdm(Xs_root))
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=300) as executor:
-            # Submit tasks for each tree node
-            futures = [executor.submit(evaluate_in_parallel, node) for node in tqdm(Xs_root)]
-            
-            # Gather results
-            results = [future.result() for future in concurrent.futures.as_completed(futures)]
-            
+        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
+
         return results
         
-    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #     self.ei_roll = RolloutEI()
-        
-    #     # Configure SLURMCluster
-
-        # cluster = SLURMCluster(cores=8, memory='20GB', processes=80, queue='htc', walltime='04:00:00') # 16 cores 5GB 12 processes 45 min 15 workers | 25 workers , cores=32, memory='10GB', processes=30, queue='htc', walltime='00:45:00'
-        
-        # # Scale the cluster to desired number of workers
-        # cluster.scale(25)  # Scale to 20 workers (adjust as needed)
-        # # cluster.adapt(maximum_jobs=100)
-        # # Connect a client to the cluster
-        # client = Client(cluster)
-        
+    
+    def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        self.ei_roll = RolloutEI()
+    
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+    
+        # Define a helper function to be executed in parallel
+        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+            agents = []  # Do you need to redefine agents here?
+            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+    
+        # Divide work among processes
+        chunk_size = len(Xs_root) // size
+        remainder = len(Xs_root) % size
+        start = rank * chunk_size
+        end = start + chunk_size
+        if rank == size - 1:
+            end += remainder
+    
+        # Execute the evaluation function in parallel for each Xs_root item
+        results = []
+        for Xs_root_item in tqdm(Xs_root[start:end]):
+            result = evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+            results.append(result)
+    
+        # Gather results from all processes
+        all_results = comm.gather(results, root=0)
+    
+        if rank == 0:
+            # Flatten the results
+            flattened_results = [item for sublist in all_results for item in sublist]
+            return flattened_results
+        else:
+            return None'''
 
     
-    #     # Define a helper function to be executed in parallel
-    #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #         agents = []  # Do you need to redefine agents here?
-    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-    
-    #     # Use Dask as the backend for joblib
-    #     with parallel_backend('dask', scheduler_host=client.scheduler.address):
-    #         dask.config.set({'distributed.worker.daemon': False})
-    #         parallel_config(backend='dask', wait_for_workers_timeout=10003500)
-            
-    #         results = Parallel(n_jobs=-1, verbose=100)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
 
-    #     client.close()
-    #     cluster.close()
+    def get_nextXY(self, agentmodels, minRewardIdx): #, rng, test_function, behavior):
+        agents = []
+        for i, minidx in enumerate(minRewardIdx):
+            agents.append(agentmodels[minidx][i])
+
+        return agents
+
+        # for a in agents:
+        #     x_opt = self.ei_roll._opt_acquisition(a.y_train, a.model, a.region_support.input_space, rng)
+        #     pred_sample_y, falsified = compute_robustness(x_opt, test_function, behavior, agent_sample=False)
         
-    #     return results
-    
-    # @profile
-    # def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-    #     self.ei_roll = RolloutEI()
-
-    #     # Define a helper function to be executed in parallel
-    #     def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-    #         return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
-
-    #     # Execute the evaluation function in parallel for each Xs_root item
-    #     results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
-        
-    #     roots = [results[i][0] for i in range(configSamples)]
-    #     agents = [results[i][1] for i in range(configSamples)]
-
-    #     return roots , agents
-    
-    # @profile
-    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #     self.ei_roll = RolloutEI()
-    #     # cluster = LocalCluster()
-    #     # # connect client to your cluster
-    #     # client = Client(cluster)
-
-    #     # # Monitor your computation with the Dask dashboard
-    #     # print(client.dashboard_link)
-    #     # print('inside evalConfigs')
-    #     # Define a helper function to be executed in parallel
-    #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #         # print('Xs_root_item in eval config : ',Xs_root_item)
-    #         agents = []
-    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-
-    #     # def daskcompute():
-    #         # Execute the evaluation function in parallel for each Xs_root item
-    #     results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
-
-    #     # with joblib.parallel_backend('dask'):
-    #     #     results = daskcompute()
-
-    #     return results
-    
-    # @profile
-    # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #     self.ei_roll = RolloutEI()
-    #     # print('inside evalConfigs')
-    #     # Define a helper function to be executed in parallel
-    #     def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-    #         # print('Xs_root_item in eval config : ',Xs_root_item)
-    #         agents = []
-    #         return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
-
-    #     # Execute the evaluation function in parallel for each Xs_root item
-    #     results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
-
-    #     return results
 
     
