@@ -1,4 +1,4 @@
-from .agent import Agent
+# from .agent import Agent
 from copy import deepcopy
 from .constants import *
 import numpy as np
@@ -8,6 +8,8 @@ from bo.utils import compute_robustness
 from itertools import permutations
 import yaml
 from collections import defaultdict
+from .localgp import Prior
+from .observation import Observations
 # from bo.bayesianOptimization.rolloutEI import RolloutEI
 
 with open('config.yml', 'r') as file:
@@ -27,26 +29,18 @@ def split_region(root,dim,num_agents):
         org[dim] = final[i]
         regs.append(org)
 
-    regs = [Node(i, 1) for i in regs]
+    regs = [Node(i, RegionState.ACTIVE.value) for i in regs]
     return regs
     
-# def get_subregion(root, num_agents, dic, dim):
-#     q = [root]
-#     used_dims = set()  # Keep track of dimensions already used for splitting
+def genFactors(num_sub_regions):
+    factors = []
+    for i in range(1, num_sub_regions + 1):
+        if num_sub_regions % i == 0:
+            factors.append([i, num_sub_regions // i])
+            if i != 1 and i != num_sub_regions:
+                factors.append([num_sub_regions // i, i])
 
-#     while len(q) < num_agents:
-#         cuts = dim % len(dic) 
-#         if len(q) % dic[cuts] == 0:
-#             # Ensure each dimension is considered at least once before repeating
-#             dim = np.random.choice([i for i in range(dim+1) if i not in used_dims])
-#             used_dims.add(dim)
-
-#         curr = q.pop(0)
-#         ch = split_region(curr, dim, dic[cuts])
-#         curr.add_child(ch)
-#         q.extend(ch)
-
-#     return q
+    return factors
 
 def get_subregion(root, num_agents, dic, dim):
     q = [root]
@@ -64,24 +58,24 @@ def get_subregion(root, num_agents, dic, dim):
         #     dim = (dim + 1) % len(root.input_space)
     return q
 
-def print_tree(node, routine, level=0, prefix=''):
+def print_tree(node, level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
-    if routine == MAIN:
-        reward = node.avgRewardDist
-    else:
-        reward = node.rewardDist
-    if node.getStatus(routine) == 1:
+    # if routine == MAIN:
+    #     reward = node.avgRewardDist
+    # else:
+    reward = node.rewardDist
+    if node.getStatus() == 1:
         color = GREEN
     else:
         color = RED
     if node is None:
         return
     id = -1
-    if node.agent != None:
-        id = node.agent.id
+    if node.getStatus() == RegionState.ACTIVE.value:
+        id = node.agentId
 
-    for i, child in enumerate(node.child):
-        print_tree(child, routine, level + 1, '|   ' + prefix if i < len(node.child) - 1 else '    ' + prefix)
+    for i, child in enumerate(node.children):
+        print_tree(child, level + 1, '|   ' + prefix if i < len(node.children) - 1 else '    ' + prefix)
     
     print('    ' * level + prefix + f'-- {color}{node.input_space.flatten()}{reward}{id}{END}')
 
@@ -135,14 +129,14 @@ def accumulate_rewards_and_update(node):
 
 def accumulate_rewardDist(node, numAgents):
     # Base case: If the node is a leaf, return its reward
-    if not node.child:
+    if not node.children:
         return node.rewardDist
 
     # Initialize the accumulated reward for this node
     accumulated_reward = node.rewardDist
 
     # Recursively accumulate rewards from child nodes and update node.value
-    for child in node.child:
+    for child in node.children:
         child_accumulated_reward = accumulate_rewardDist(child, numAgents)
         # print('child_accumulated_reward: ',child_accumulated_reward, child.input_space, accumulated_reward)
         if child_accumulated_reward == []:
@@ -196,42 +190,16 @@ def accumulateSamples(node):
 
     return keys, values #accumulated_reward, accy
 
-
-# def accumulateSamples(node):
-#     # Base case: if it's a leaf node, return its X and Y
-#     if not node.child:
-#         return node.smpXtr, node.smpYtr.reshape(-1, 1)  # Reshape Y to make it 2D
+def accumulate_all_keys(node):
+    if not node.children:
+        return node.yOfsmpIndices.copy() if node.yOfsmpIndices else {}
     
-#     # Initialize dictionaries to store accumulated Y and counts for each X value
-#     aggregated_Y = defaultdict(list)
-#     counts = defaultdict(int)
-    
-#     # Accumulate arrays from children
-#     for child in node.child:
-#         child_X, child_Y = accumulateSamples(child)
-#         for x, y in zip(child_X, child_Y):
-#             x_key = tuple(x.tolist()) if isinstance(x, np.ndarray) else x
-#             aggregated_Y[x_key].append(y)
-#             counts[x_key] += 1
-    
-#     # Aggregate duplicate values and calculate mean of corresponding Y values
-#     aggregated_X = []
-#     mean_Y = []
-#     for x_key, y_values in aggregated_Y.items():
-#         aggregated_X.append(x_key)
-#         mean_Y.append(np.mean(y_values, axis=0))
-#     print('aggregated_X : ',aggregated_X, mean_Y)
-    
-#     # Include the current node's X and Y values
-#     aggregated_X.extend(node.smpXtr)
-#     mean_Y.extend(node.smpYtr)
-#     print('aggregated_X fter: ',aggregated_X, mean_Y)
-#     mean_Y = np.asarray(mean_Y, dtype='object')
-#     mean_Y = np.hstack((mean_Y))
-#     if mean_Y.shape[0] > 1:
-#         mean_Y = mean_Y.reshape((-1))
-#     # mean_Y = np.hstack((mean_Y))
-#     return np.asarray(aggregated_X), mean_Y
+    accumulated_values = {}
+    for child in node.children:
+        child_values = accumulate_all_keys(child)
+        for key, value in child_values.items():
+            accumulated_values[key] = accumulated_values.get(key, 0) + value
+    return accumulated_values
 
 def find_min_leaf(node, routine, min_leaf=None):
         if min_leaf is None:
@@ -312,7 +280,7 @@ def find_common_parent(root, node1, node2):
 
     # Recursively search in the children
     child_results = []
-    for child in root.child:
+    for child in root.children:
         result = find_common_parent(child, node1, node2)
         if result:
             child_results.append(result)
@@ -324,85 +292,20 @@ def find_common_parent(root, node1, node2):
     # If one of the nodes is found, return that node
     return child_results[0] if child_results else None
 
-def reassignPerAgentUsingRewardDist(currentAgentIdx, root, routine, agents):
-    subregs = root.find_leaves() 
-    
-    rewardStack = []
-    subregs = sorted(subregs, key=lambda x: (x.getStatus(routine) == 0, x.agent.id if x.getStatus(routine) == 1 else None))
-    for subr in subregs:
-        if routine == MAIN:
-            # if subr.agent != None:
-            #     print('subr.agent.id: ',subr.agent.id, 'status :',subr.getStatus(routine))
-            # print('subr.avgRewardDist: ', subr.avgRewardDist, subr.input_space)
-            rewardStack.append(np.hstack((subr.avgRewardDist)))
-        else:
-            rewardStack.append(np.hstack((subr.rewardDist)))
-        # if routine == MAIN:
-        #     print(agent)
-    # print('rewardStack: ',rewardStack)
-    minsubreg = np.asarray(rewardStack, dtype="object")
-    minsubreg = minsubreg.reshape((len(subregs), 4))
-    # if routine == MAIN:
-        # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
-    assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
-    minsubregIdxAmongAll = np.argmin(minsubreg ,axis=0)
-    minsubregIdxAmongAgents = np.argmin(minsubreg[:len(agents)], axis=0)
-    
-        
-    for idx, a in enumerate(agents[currentAgentIdx:]):
-        idx += currentAgentIdx
-        a = agents[idx]
-        # idx = a.id
-        if idx == 0:
-            minsubregIdx = minsubregIdxAmongAll
-        else:
-            minsubregIdx = minsubregIdxAmongAgents
-        # if routine == MAIN:
-        #     print('--------------------------------------')
-        #     print('minsubregIdx: ',minsubregIdx, f'of agent {a.id}')
-        #     print('--------------------------------------')
-        # deactivate curr subreg
-        currSubreg = a.getRegion(routine)
-        # print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
-        # print([{i: i.getRegion(MAIN).input_space} for i in currSubreg.getAgentList(MAIN)])
-        # print('--------------------------------------')
-        currSubreg.reduceNumAgents(routine)
-        # print('currSubreg agentList region: b4 removal ',len(currSubreg.getAgentList(routine)) ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
-        currSubreg.removeFromAgentList(a, routine)
-        # print('--------------------------------------')
-        # if currSubreg.numAgents > 
-        # currSubreg.agent
-        # a(routine)
-        # activate new sub reg
-        # subregs = subregs[::-1]
-        subregs[minsubregIdx[idx]].updateStatus(1, routine)
-        subregs[minsubregIdx[idx]].increaseNumAgents(routine)
-        subregs[minsubregIdx[idx]].addAgentList(a, routine)
-        # print('subregs[minsubregIdx[idx]]: ',subregs[minsubregIdx[idx]].input_space)
-        # if routine == MAIN:
-        # print('--------------------------------------')
-        # print(subregs[minsubregIdx[idx]].input_space)
-        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList), subregs[minsubregIdx[idx]].getnumAgents(routine))
-        assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
-    # print('num agents : ',[i.getnumAgents(routine) for i in subregs])
-    # print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
-    # print('--------------------------------------')
-    # partitionRegions(subregs)
-    return subregs
 
 def reassignUsingRewardDist(root, routine, agents, jump_prob):
     subregs = root.find_leaves() 
     
     rewardStack = []
-    subregs = sorted(subregs, key=lambda x: (x.getStatus(routine) == 0, x.agent.id if x.getStatus(routine) == 1 else None))
+    subregs = sorted(subregs, key=lambda x: (x.getStatus() == RegionState.INACTIVE.value, x.agentId if x.getStatus() == RegionState.ACTIVE.value else float('inf')))
     for subr in subregs:
-        if routine == MAIN:
-            # if subr.agent != None:
-            #     print('subr.agent.id: ',subr.agent.id, 'status :',subr.getStatus(routine))
-            # print('subr.avgRewardDist: ', subr.avgRewardDist, subr.input_space)
-            rewardStack.append(np.hstack((subr.avgRewardDist)))
-        else:
-            rewardStack.append(np.hstack((subr.rewardDist)))
+        # if routine == RegionState.MAIN:
+        #     # if subr.agent != None:
+        # print('subr.agent.id: ',subr.agentId)
+        #     # print('subr.avgRewardDist: ', subr.avgRewardDist, subr.input_space)
+        rewardStack.append(np.hstack((subr.rewardDist)))
+        # else:
+        #     rewardStack.append(np.hstack((subr.rewardDist)))
         # if routine == MAIN:
         #     print(agent)
     # print('rewardStack: ',rewardStack)
@@ -411,7 +314,7 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
     # if routine == MAIN:
         # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
     
-    # print('level: ',level)
+    # print('minsubreg: ',len(agents), minsubreg[:len(aents)])
     # sorted_indices = sorted(enumerate(minsubreg), key=lambda x: x[1])
     # # Extract the sorted indices
     # sorted_indices_only = [index for index, value in sorted_indices]
@@ -440,7 +343,8 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
 
     for idx, a in enumerate(agents):
         # idx = a.id
-        if idx == 0:# and jump_prob > 0.8:
+        print()
+        if a.agentId == 0:# and jump_prob > 0.8:
             minsubregIdx = minsubregIdxAmongAll
         else:
             minsubregIdx = minsubregIdxAmongAgents
@@ -449,30 +353,30 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         #     print('minsubregIdx: ',minsubregIdx, f'of agent {a.id}')
         #     print('--------------------------------------')
         # deactivate curr subreg
-        currSubreg = a.getRegion(routine)
+        currSubreg = a #.getRegion(routine)
         # print('currSubreg: ',currSubreg.input_space)#, 'len(currSubreg.getAgentList(MAIN, Rollout)): ',len(currSubreg.getAgentList(MAIN)), len(currSubreg.getAgentList(ROLLOUT)))
         # print([{i: i.getRegion(MAIN).input_space} for i in currSubreg.getAgentList(MAIN)])
         # if routine == MAIN:
         #     print('-------------------------------------- inside reassign agent id', currSubreg.agent.id)
-        currSubreg.reduceNumAgents(routine)
-        # print('currSubreg agentList region: b4 removal ',len(currSubreg.getAgentList(routine)) ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
-        currSubreg.removeFromAgentList(a, routine)
+        currSubreg.reduceNumAgents()
+        # print('currSubreg agentList region: b4 removal ',currSubreg.input_space,currSubreg.getAgentList() ) #currSubreg.getAgentList(routine)[0].getRegion(routine).input_space)
+        currSubreg.removeFromAgentList(currSubreg.agentId)
         # print('--------------------------------------')
         # if currSubreg.numAgents > 
         # currSubreg.agent
         # a(routine)
         # activate new sub reg
         # subregs = subregs[::-1]
-        subregs[minsubregIdx[idx]].updateStatus(1, routine)
-        subregs[minsubregIdx[idx]].increaseNumAgents(routine)
-        subregs[minsubregIdx[idx]].addAgentList(a, routine)
+        subregs[minsubregIdx[idx]].updateStatus(routine.ACTIVE)
+        subregs[minsubregIdx[idx]].increaseNumAgents()
+        subregs[minsubregIdx[idx]].addAgentList(a.agentId)
         # print('subregs[minsubregIdx[idx]]: ',subregs[minsubregIdx[idx]].input_space)
         # if routine == MAIN:
         # print('--------------------------------------')
         # print(subregs[minsubregIdx[idx]].input_space)
         # print_tree(root, ROLLOUT)
-        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',len(subregs[minsubregIdx[idx]].agentList),[(a, a.id) for a in subregs[minsubregIdx[idx]].agentList],  subregs[minsubregIdx[idx]].getnumAgents(routine))
-        assert len(subregs[minsubregIdx[idx]].getAgentList(routine)) ==  subregs[minsubregIdx[idx]].getnumAgents(routine)
+        # print('len subregs[minsubregIdx[idx]] agentList: after appending ',subregs[minsubregIdx[idx]].agentList,  subregs[minsubregIdx[idx]].getnumAgents())
+        assert len(subregs[minsubregIdx[idx]].getAgentList()) ==  subregs[minsubregIdx[idx]].getnumAgents()
     # print('num agents : ',[i.getnumAgents(routine) for i in subregs])
     # print('len agent list : ',[len(i.getAgentList(routine)) for i in subregs])
     # print('--------------------------------------')
@@ -483,156 +387,73 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         # a.updateBounds(subregs[minsubregIdx[idx]], routine)
         # a(routine)
 
-def partitionRegions(root, subregions, routine, dim):
+def partitionRegions(root, globalGP, subregions, routine, dim):
     # print('===================================================')
     # print('================= Paritioning =================')
     for subr in subregions:
-        if subr.getnumAgents(routine) > 1:
-            subr.updateStatus(0, routine)
-            internal_factorized = find_prime_factors(subr.getnumAgents(routine))
-            ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
+        if subr.getnumAgents() > 1:
+            subr.updateStatus(routine.INACTIVE)
+            internal_factorized = find_prime_factors(subr.getnumAgents())
+            ch = get_subregion(deepcopy(subr), subr.getnumAgents() , internal_factorized, dim)
             subr.add_child(ch)
-            assert len(ch) == subr.getnumAgents(routine)
+            assert len(ch) == subr.getnumAgents()
 
             # assign the agents to the new childs 
             for idx, agent in enumerate(subr.agentList):
-                agent.updateBounds(ch[idx], routine)
-                #assign self
-                agent(routine)
-                agent.getRegion(routine).addAgentList(agent, routine)
-                if routine == MAIN:
-                    rt = 'MAIN'
-                else:
-                    rt = 'ROLLOUT'
-                # print(f'b4 upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
-                agent.updateObs(subr, routine)
-                ch[idx].updatesmpObs(subr)
-                splitsmpObs(ch[idx])
+                ch[idx].agentId = agent
+                # print('> 1 agent :',ch[idx].agentId, subr.agentList)
+                # localGP = Prior(globalGP.dataset, ch[idx].input_space)
+                # ch[idx].model , ch[idx].obsIndices = localGP.buildModel() #updateObs()
+                ch[idx].samples = subr.samples
+                ch[idx].updatesmpObs()
+                # splitsmpObs(ch[idx])
                 # print(f'after upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
                 # print('agent.getRegion(routine): ',agent.getRegion(routine))
                 # print('-------------------more than 1 agent-------------------')
 
-        elif subr.getnumAgents(routine) == 0:
-            subr.updateStatus(0, routine)
+        elif subr.getnumAgents() == 0:
+            subr.updateStatus(routine.INACTIVE.value)
             # subr.agent(routine)
-            assert len(subr.getAgentList(routine)) == 0
+            subr.agentId = None
+            assert len(subr.getAgentList()) == 0
 
-        elif subr.getnumAgents(routine) == 1:
+        elif subr.getnumAgents() == 1:
+            subr.updateStatus(routine.ACTIVE.value)
             assert len(subr.agentList) == 1
-            alist = subr.getAgentList(routine)
-            alist[0].updateBounds(subr, routine)
-            alist[0](routine)
-            # print('subr.agentList[0].getRegion(routine).input_space, subr.input_space : ',subr.agentList[0].getRegion(routine).input_space, subr.input_space)
-            assert alist[0].getRegion(routine) == subr
+            aidx = subr.getAgentList()
+            subr.agentId = aidx[0]
+            subr.updatesmpObs()
+            # alist[0].updateBounds(subr, routine)
+            # alist[0](routine)
+            # # print('subr.agentList[0].getRegion(routine).input_space, subr.input_space : ',subr.agentList[0].getRegion(routine).input_space, subr.input_space)
+            # assert aidx[0].getRegion() == subr
             # if routine == MAIN:
             # print(f'b4 upadting from parent {routine}',[alist[0].x_train if routine == MAIN else alist[0].simXtrain], [alist[0].x_train if routine == MAIN else alist[0].simXtrain])
             # alist[0].updateObs(subr, routine)
-            alist[0].updateObsFromRegion(subr, routine)
+            # aidx[0]. #updateObsFromRegion(subr, routine)
             # print(f'after upadting from parent {routine}',[alist[0].x_train if routine == MAIN else alist[0].simXtrain], [alist[0].x_train if routine == MAIN else alist[0].simXtrain])
             # print('----------------exactly 1 agent ----------------------')
     
     newSubreg = root.find_leaves()
-    newAgents = []
+    # newAgents = []
     for newsub in newSubreg:
-        if routine == MAIN:
-            newsub.setRoutine(routine)
-        if newsub.getStatus(routine) == 1:
-            # print('agent in new active region : ', newsub.input_space, newsub.agentList)
-            # print('--------------------------------------')
-            assert len(newsub.getAgentList(routine)) == 1
-            newAgents.append(newsub.getAgentList(routine)[0])
-            # if routine == MAIN:
-            #     newsub.addFootprint(newsub.agent.x_train, newsub.agent.y_train, newsub.agent.model)
-            # else:
-            #     newsub.addFootprint(newsub.agent.simXtrain, newsub.agent.simYtrain, newsub.agent.simModel)
-        # if routine == MAIN:
-            # print('new subr : ', newsub.input_space, 'agent : ', newsub.agent.id)
+    #     if routine == RegionState.MAIN:
+    #         newsub.setRoutine(routine)
+        if newsub.getStatus() == routine.ACTIVE.value:
+            newsub.addAgentList(newsub.agentId)
+            # print('agent in new active region : ', newsub.input_space, newsub.agentList, newsub.agentId)
+    #         # print('--------------------------------------')
+    #         assert len(newsub.getAgentList()) == 1
+    #         newAgents.append(newsub.getAgentList()[0])
+    #         # if routine == MAIN:
+    #         #     newsub.addFootprint(newsub.agent.x_train, newsub.agent.y_train, newsub.agent.model)
+    #         # else:
+    #         #     newsub.addFootprint(newsub.agent.simXtrain, newsub.agent.simYtrain, newsub.agent.simModel)
+    #     # if routine == MAIN:
+    #         # print('new subr : ', newsub.input_space, 'agent : ', newsub.agent.id)
 
-    newAgents = sorted(newAgents, key=lambda x: x.id)
-    return newAgents
-
-
-
-
-
-
-def reassign(root, routine, agents, currentAgentIdx, model, xtr, ytr):
-    minRegval = find_min_leaf(root, routine)
-    minReg = minRegval[1]
-    val = minRegval[0]
-    # print('agents inside reassign from:'+str(routine), [i.region_support.input_space for i in agents])
-    # print('curr agents[self.num_agents-h].region_support: ',agents[currentAgentIdx].region_support.input_space, agents[currentAgentIdx].region_support)
-    # print('region with min reward: find_min_leaf ',minReg.input_space, val, minReg)
-    currAgentRegion = agents[currentAgentIdx].getRegion(routine)
-    print('currentAgentIdx region: ',currAgentRegion.input_space, 'minreg :', minReg.input_space, 'val: ',val)
-
-    # print(root.find_leaves())
-    if currAgentRegion != minReg:  # either moves to act or inact region
-        currAgentRegion.updateStatus(0, routine)
-        agents[currentAgentIdx](routine)
-        if minReg.getStatus(routine) == 1:
-            internal_factorized = find_prime_factors(2) #sorted(find_close_factor_pairs(2), reverse=True)
-            ch = get_subregion(deepcopy(minReg), 2, internal_factorized, np.random.randint(len(minReg.input_space)))
-            minReg.add_child(ch)
-            minReg.updateStatus(0, routine)
-
-            agents[currentAgentIdx].updateBounds(ch[1], routine)
-            print('ch[1].getStatus(routine): ',ch[1].input_space ,ch[1].getStatus(routine))
-            agents[currentAgentIdx](routine)
-            print('ch[1].agent.simReg.input_space: ',ch[1].agent.simReg.input_space, ch[1].agent.region_support.input_space)  # ch[1].agent.simReg.input_space = ch[1].input_space should be equal
-            assert ch[1].agent.getRegion(routine) == ch[1]
-            minReg.agent.updateBounds(ch[0], routine)
-            minReg.agent(routine)  # ch[0].input_space == minReg.agent.simReg.input_space should be 
-            assert ch[0] == minReg.agent.getRegion(routine)
-            # print('minreg : ', minReg.input_space, minReg.getStatus(routine))
-        else:
-            minReg.updateStatus(1, routine)
-            agents[currentAgentIdx].updateBounds(minReg, routine)
-            agents[currentAgentIdx](routine)   # minReg.input_space == agents[currentAgentIdx].simReg.input_space)
-            assert minReg == agents[currentAgentIdx].getRegion(routine)
-
-        if routine == MAIN:
-            minReg.resetStatus()
-            minReg.resetReward()
-        
-        # print('agents inside reassign ', [i.getRegion(routine).input_space for i in agents])
-        newAgents = []
-        newLeaves = root.find_leaves()
-        print(newLeaves)
-        # print('newleaves ', [{str(i.input_space) : (i.agent.simReg, i.getStatus(ROLLOUT))} for i in newLeaves])
-        # print_tree(root, ROLLOUT)
-        # if routine == MAIN:
-        #     print('inside reassign tree')
-        #     print_tree(root, MAIN)
-        #     print_tree(root, ROLLOUT)
-        for reg in newLeaves:
-            # reg.setRoutine(routine)
-            # if reg.agent != None:
-            #     reg.agent(routine)
-            if reg.getStatus(routine) == 1:
-                # reg.agent(routine)
-                print('reg ', str(reg.input_space), reg.agent)
-                print('newleaves ', {str(reg.input_space) : (reg.agent.getRegion(routine).input_space, reg.getStatus(ROLLOUT))})  # regions should be equal
-                newAgents.append(reg.agent)
-                # print('new agents inside for : ', newAgents)
-            if routine == MAIN:
-                reg.setRoutine(routine)
-                reg.resetStatus()
-                reg.resetReward()
-        
-        return newAgents
-    else:
-        oldLeaves = root.find_leaves()
-        for reg in oldLeaves:
-            # reg.region_support.setRoutine(routine)
-            # print('else loop ', reg.input_space, reg.routine)
-            if routine == MAIN:
-                reg.resetStatus()
-                reg.resetReward()
-        # print('inside reassign new agents : ', newAgents)
-
-        
-    return agents
+    # newAgents = sorted(newAgents, key=lambda x: x.id)
+    return root
 
 
 def find_leaves_and_compute_avg(trees):
@@ -784,12 +605,26 @@ def find_parent(root, target):
         if node == target:
             # If the target node is found, return the last node in the path
             return path[-1] if path else None
-        for child in node.child:
+        for child in node.children:
             stack.append((child, path + [node]))
 
     return None
 
-def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+def find_min_diagonal_sum_matrix(matrix):
+    n, _, _ = matrix.shape
+    min_sum = float('inf')
+    min_matrix = None
+    
+    for i in range(n):
+        sums = np.trace(matrix[i])
+        if min_sum > sums:
+            min_sum = sums
+            min_matrix = i
+
+    return min_matrix
+
+
+def genSamplesForConfigs(ei, globalGP, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         avgrewards = np.zeros((1,num_agents,num_agents))
         agentModels = []
         xroots = []
@@ -805,40 +640,22 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
         permutations_list = permutations_list[:permToeval]
         for perm in range(len(permutations_list)):
             for Xs_root in roots:
-                # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
-                # rtPrior = Prior(x_train, y_train, model, MAIN)
-                # Xs_root.addFootprint(rtPrior, MAIN)
-                # _,_, model = Xs_root.mainPrior.getData(MAIN)
-                # Xs_root.model = deepcopy(model)
-                # state = np.random.get_state()
-
-                # # Print the seed value
-                # print("Seed value:", state[1][0])
                 agents = []
-                # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
                 nid = 0
+                allxtr = np.empty((0,tf_dim))
+                allytr = np.empty((0))
+                allsmp = Observations(allxtr , allytr)
+                
                 for id, l in enumerate(Xs_root.find_leaves()):
-                    l.setRoutine(MAIN)
+                    # l.setRoutine(MAIN)
                     nid = nid % num_agents
-                    if l.getStatus(MAIN) == 1:
-                        # if l.agent.model == None:
-                        #     parent = find_parent(Xs_root, l)
-                        #     model = parent.model
-                        # else:
-                        #     model = l.agent.model
-                        
-                        # xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
-                        # print(idx, id,i, len(permutations_list))
-                        # mainag = Agent(permutations_list[perm][nid], None, xtr, ytr, l)
-                        # mainag(MAIN)
-                        mainag = l.agent
-                        l.addAgentList(mainag, MAIN)
-                        # mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
-                        # mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
-                        mainag.id = permutations_list[perm][nid]
+                    if l.getStatus() == RegionState.ACTIVE.value:
+                        l.samples = allsmp
+                        l.agentId = permutations_list[perm][nid]
+                        l.addAgentList(l.agentId)
                         
                         nid += 1
-                        agents.append(mainag)
+                        agents.append(l)
                 # moreRoots.append(deepcopy(rt))
                 
                     # l.setRoutine(MAIN)
@@ -861,39 +678,47 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                 minytrval = float('inf')
                 minytr = []
                 for ix, a in enumerate(agents):
+                    # print('indside getsmpConfigs', 'status:', a.__dict__)
                     for ia in agents:
-                        if min(ia.y_train) < minytrval:
-                            minytrval = min(ia.y_train)
-                            minytr = ia.y_train
+                        minidx = globalGP.dataset._getMinIdx(ia.obsIndices)
+                        # if min(ia.gp.dataset.y_train) < minytrval:
+                            # minytrval = min(ia.y_train)
+                        minytrval = min(minytrval, globalGP.dataset.y_train[minidx])
                             
                 
-                agents = sorted(agents, key=lambda x: x.id)
-                agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
+                agents = sorted(agents, key=lambda x: x.agentId)
+                # agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
                 for a in agents:
                     # if sample == 0:
                     #     a.ActualXtrain == 
-                    xtsize = (tf_dim*5) - len(a.x_train)
+                    xtsize = ((tf_dim*2)/num_agents) - len(a.obsIndices)
                     if xtsize > 0: 
                         # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
-                        x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)
+                        x_train = lhs_sampling( xtsize, a.input_space, tf_dim, rng)
                         y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
-                    
-                        a.x_train = np.vstack((a.x_train, x_train))
-                        a.y_train = np.hstack((a.y_train, y_train))
+
+                        globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
+                        # a.obsIndices.extend(newidxs)
+                        # a.x_train = np.vstack((a.x_train, x_train))
+                        # a.y_train = np.hstack((a.y_train, y_train))
 
                         # a.updateModel()
-                    assert check_points(a, MAIN) == True
-                    a.updateModel()
-                    a.resetModel()
-                    a.region_support.addFootprint(a.x_train, a.y_train, a.model)
+                    localGP = Prior(globalGP.dataset, a.input_space)
+                    model, indices = localGP.buildModel()
+                    a.updateModel(indices, model)
                     
-                    assert check_points(a, ROLLOUT) == True
+                    # assert check_points(a, MAIN) == True
+                    # a.updateModel()
+                    # a.resetModel()
+                    # a.region_support.addFootprint(a.x_train, a.y_train, a.model)
+                    
+                    # assert check_points(a, ROLLOUT) == True
                     # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                    xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
-                    
-                    x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
+                    xtr, ytr = initAgents(a.model, a.input_space, init_sampling_type, tf_dim*2, tf_dim, tf, behavior, rng, store=True)
+                    # print('minytr :', minytrval)
+                    x_opt = ei._opt_acquisition(minytrval, a.model, a.input_space, rng)
                     x_opt = np.asarray([x_opt])
                     mu, std = ei._surrogate(a.model, x_opt)
                     f_xt = np.random.normal(mu,std,1)
@@ -901,12 +726,19 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     ytr = np.hstack((ytr, f_xt))
                     print('ei pt to eval : ',x_opt, f_xt)
 
-                    a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
-                    a.region_support.smpYtr = ytr
-                    a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
-                    a.simReg.smpYtr = ytr
-                    assert a.region_support.check_points() == True
-                    assert a.simReg.check_points() == True
+                    # allxtr = np.concatenate((allxtr, xtr), axis=0)
+                    # allytr = np.concatenate((allytr, ytr), axis=0)
+
+                    a.samples.appendSamples(xtr, ytr) 
+
+                    a.updatesmpObs()
+                    # a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                    # a.region_support.smpYtr = ytr
+                    # a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                    # a.simReg.smpYtr = ytr
+                    # assert a.region_support.check_points() == True
+                    # assert a.simReg.check_points() == True
+                    # exit(1)
                 
 
                 # print(f'_________________  ____________________')
@@ -915,7 +747,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                 agentModels.append(deepcopy(agents))
                 xroots.append(deepcopy(Xs_root))
                 # exit(1)
-        return xroots, agentModels
+        return xroots, agentModels, globalGP
 
 
 def initAgents(globmodel,region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
@@ -943,6 +775,49 @@ def initAgents(globmodel,region_support, init_sampling_type, init_budget, tf_dim
         y_train = actY
 
         return x_train , y_train #actY
+
+def delete_tree(node):
+    if node is None:
+        return
+    for child in node.children:
+        delete_tree(child)
+    del node
+
+
+# Function to save the state of the tree nodes
+def saveRegionState(node):
+    node.saved_state = deepcopy(node.__dict__)
+    del node.saved_state['saved_state']
+    # print('saved state child ? ',node, node.input_space, node.saved_state['children'])
+    if node.children:
+        for child in node.children:
+            saveRegionState(child)
+
+    return node
+
+def copyRegionAttributes(root, node):
+    parent = find_parent(root, node)
+    if node.saved_state != None:
+        state = node.__dict__.copy()
+        for key, value in state.items():
+            setattr(node, key, value)
+    
+    return node
+
+# Function to restore the state of the tree nodes except for 'attribute_to_track'
+def restoreRegionState(node, keeplist):
+    if node.saved_state != None:
+        state = node.saved_state
+        # print('saved state child from restore? ',node, node.input_space, state['children'])
+        for key, value in state.items():
+            if key not in keeplist:
+                # print('key that is restored :', key, state[key], node.children)
+                setattr(node, key, value)
+                # print('key val after setattr ', node.children)
+    if node.children:
+        for child in node.children:
+            restoreRegionState(child, keeplist)
+    return node
 
 # n = Node(1,1)
 # n.reward = 1
