@@ -148,14 +148,14 @@ class RolloutEI(InternalBO):
         self.num_agents = num_agents
         self.sample = sample
 
-        if not os.path.exists('results/'+configs['testfunc']+'/nodes'):
-            os.makedirs('results/'+configs['testfunc']+'/nodes')
-            os.makedirs('results/'+configs['testfunc']+'/reghist')
+        # if not os.path.exists('results/'+configs['testfunc']+'/nodes'):
+        #     os.makedirs('results/'+configs['testfunc']+'/nodes')
+        #     os.makedirs('results/'+configs['testfunc']+'/reghist')
             
-        if not os.path.exists(f'results/dict/iter_{sample}'):
-            os.makedirs(f'results/dict/iter_{sample}')
+        # if not os.path.exists(f'results/dict/iter_{sample}'):
+        #     os.makedirs(f'results/dict/iter_{sample}')
         
-        self.savetxtpath = f'results/dict/iter_{sample}/'
+        # self.savetxtpath = f'results/dict/iter_{sample}/'
 
         lf = self.root.find_leaves()
         xtr = deepcopy(x_train)
