@@ -364,19 +364,21 @@ class RolloutEI(InternalBO):
 
             minytrval = float('inf')
             minytr = []
-            for ix, a in enumerate(agents):
-                for ia in agents:
-                    try:
-                        minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
-                    except IndexError:
-                        print('-'*20)
-                        print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
-                        print('-'*20)
-                        exit(1)
-                    # if min(ia.gp.dataset.y_train) < minytrval:
-                        # minytrval = min(ia.y_train)
-                    minytr = min(minytrval, tmpGP.dataset.y_train[minidx])
-            ytr = minytr
+            # for ix, a in enumerate(agents):
+            #     for ia in agents:
+            #         try:
+            #             minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
+            #         except IndexError:
+            #             print('-'*20)
+            #             print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
+            #             print('-'*20)
+            #             # exit(1)
+            #             continue
+            #         # if min(ia.gp.dataset.y_train) < minytrval:
+            #             # minytrval = min(ia.y_train)
+            #         minytr = min(minytrval, tmpGP.dataset.y_train[minidx])
+            # ytr = minytr
+            ytr = np.min(tmpGP.dataset.y_train)
             
             for ix, a in enumerate(agents):
                 model = a.model
@@ -532,7 +534,7 @@ def simulate(root, globalGP, mc_iters, num_agents, horizon, rng):
 
     # exit(1)
     # b4root = root
-    for m in range(mc_iters):
+    for m in tqdm(range(mc_iters)):
         print(f'= MC {m}'*50)
         
         start_time = time.time()  # Start time
@@ -563,6 +565,6 @@ def simulate(root, globalGP, mc_iters, num_agents, horizon, rng):
         # print_tree(b4root)
         print('^'*50)
     print('total time ', total_time)
-    exit(1)
+    # exit(1)
     return root
 

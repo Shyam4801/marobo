@@ -73,31 +73,7 @@ def min_diagonal(matrix):
     
     return result_matrix, index_matrix
 
-def find_min_diagonal_sum_matrix(matrix):
-    n, _, _ = matrix.shape
-    min_sum = float('inf')
-    min_matrix = None
-    
-    for i in range(n):
-        sums = np.trace(matrix[i])
-        if min_sum > sums:
-            min_sum = sums
-            min_matrix = i
 
-    return min_matrix
-
-def find_min_among_diagonal_matrix(matrix):
-    n, _, _ = matrix.shape
-    min_sum = float('inf')
-    min_matrix = None
-    
-    for i in range(n):
-        sums = min(np.diagonal(matrix[i])) #np.trace(matrix[i])
-        if min_sum > sums:
-            min_sum = sums
-            min_matrix = i
-
-    return min_matrix
 
 def unwrap_self(arg, **kwarg):
     return RolloutBO.evalConfigs(*arg, **kwarg)
@@ -177,7 +153,7 @@ class RolloutBO(BO_Interface):
             model , indices = globalGP.buildModel()
             X_root.updateModel(indices, model)
             
-            avgrewards = np.zeros((1,num_agents,num_agents))
+            
             # agentModels = []
             # xroots = []
             
@@ -203,8 +179,8 @@ class RolloutBO(BO_Interface):
             Xs_roots = rollout.run(xroots, globalGP, num_agents, region_support, rng)
 
             main = MainRoutine()
-            X_root = main.run(Xs_roots, globalGP, num_agents, tf_dim, test_function, behavior, rng, agdic)
-            
+            X_root , _ = main.run(Xs_roots, globalGP, num_agents, tf_dim, test_function, behavior, rng, agdic)
+            print('roll bo :',X_root)
             
             # print_tree(X_root, RegionState.ACTIVE)
 

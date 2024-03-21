@@ -25,7 +25,8 @@ from ..utils.visualize import plot_convergence
 # from tests.log_test import logrolldf
 from ..utils.savestuff import *
 from ..agent.localgp import Prior
-from multiprocessing import Pool
+# from multiprocessing import Pool
+import multiprocessing as mp
 from functools import partial
 
 with open('config.yml', 'r') as file:
@@ -44,8 +45,12 @@ class RolloutRoutine:
 
         mc = configs['sampling']['mc_iters']
         if configs['parallel']:
-            with Pool(processes=1) as pool:
-                results = pool.map(partial(simulate, globalGP=globalGP, mc_iters=mc, num_agents=num_agents, horizon=4, rng=rng), xroots)
+            # mp.set_start_method("spawn", force=True)
+            # with mp.Pool(processes=1) as pool:
+            #     print('pooling ')
+            #     results = pool.map(partial(simulate, globalGP=globalGP, mc_iters=mc, num_agents=num_agents, horizon=4, rng=rng), xroots)
+
+            results = Parallel(n_jobs=-1)(delayed(simulate)(Xs_root_item, globalGP=globalGP, mc_iters=mct, num_agents=num_agents, horizon=4, rng=rng) for mct in range(1,mc) for (Xs_root_item) in tqdm(xroots) )
         
         else:
             results=[]

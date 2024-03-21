@@ -8,4 +8,4 @@ testfunc: 'rastrigin'
 configs:
   perm: 1
   smp: 1
-parallel: False
+parallel: True
