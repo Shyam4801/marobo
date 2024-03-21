@@ -73,7 +73,7 @@ def logdf(data,jobid, init_samp,maxbud, name, yofmins, rollout=False):
     initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
     with open(initpath+f'/initsmp_{name}.pickle', 'wb') as handle:
         pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    
+    timestmp = 'results/mod_branin'
     xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()

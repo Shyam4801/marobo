@@ -6,9 +6,11 @@ from .partition import Node
 from bo.sampling import uniform_sampling, lhs_sampling
 from bo.utils import compute_robustness
 from itertools import permutations
-import yaml
+import yaml, pickle
 from collections import defaultdict
 # from bo.bayesianOptimization.rolloutEI import RolloutEI
+from joblib import wrap_non_picklable_objects
+
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
@@ -872,7 +874,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                 for a in agents:
                     # if sample == 0:
                     #     a.ActualXtrain == 
-                    xtsize = (tf_dim*5) - len(a.x_train)
+                    xtsize = int((tf_dim*10)) - len(a.x_train)
                     if xtsize > 0: 
                         # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
@@ -891,7 +893,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     assert check_points(a, ROLLOUT) == True
                     # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                    xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
+                    xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
                     
                     x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
                     x_opt = np.asarray([x_opt])
@@ -899,7 +901,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                     f_xt = np.random.normal(mu,std,1)
                     xtr = np.vstack((xtr , x_opt))
                     ytr = np.hstack((ytr, f_xt))
-                    print('ei pt to eval : ',x_opt, f_xt)
+                    # print('ei pt to eval : ',x_opt, f_xt)
 
                     a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
                     a.region_support.smpYtr = ytr
@@ -913,6 +915,7 @@ def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, 
                 # model = GPR(gpr_model)
                 # model.fit(globalXtrain, globalYtrain)
                 agentModels.append(deepcopy(agents))
+                # srt = pickle.dump(deepcopy(Xs_root))
                 xroots.append(deepcopy(Xs_root))
                 # exit(1)
         return xroots, agentModels
@@ -996,3 +999,30 @@ def initAgents(globmodel,region_support, init_sampling_type, init_budget, tf_dim
 # print('set([i.getVolume() for i in ch]) :', set([i.getVolume() for i in ch]))
 # print_tree(n, MAIN)
 
+
+# @wrap_non_picklable_objects
+def evaluate_in_parallel(ei_roll, Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, horizon, rng):
+            # print('Xs_root_item in eval config : ',Xs_root_item)
+            print(f'Task {Xs_root_item}', flush=True)
+            agents = []
+            return ei_roll.sample(sample, Xs_root_item, agents, num_agents, globalXtrain, horizon, globalYtrain, region_support, model, rng)
+
+
+def evalWrapper(args):
+        return evaluate_in_parallel(*args)
+
+
+# def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+#             ei_roll = RolloutEI()
+#             # print('Xs_root_item in eval config : ',Xs_root_item)
+#             agents = []
+#             return ei_roll.sample(sample, Xs_root_item, agents, num_agents, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+
+# def evaluate_in_parallel( arg):
+#             print(arg)
+#             ei_roll, Xs_root_item, sample, num_agents, globalXtrain, horizon, globalYtrain, region_support, model, rng = arg
+#             # ei_roll = arg[0]
+#             # Xs_root_item = pickle.load(Xs_root_item)
+#             # print('Xs_root_item in eval config : ',Xs_root_item)
+#             agents = []
+#             return ei_roll.sample(sample, Xs_root_item, agents, num_agents, globalXtrain, horizon, globalYtrain, region_support, model, rng)

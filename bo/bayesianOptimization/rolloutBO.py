@@ -37,10 +37,15 @@ from dask.distributed import Client, LocalCluster
 
 from joblib import parallel_backend, parallel_config
 import joblib
+from joblib import wrap_non_picklable_objects
+
 import dask, time, json
 # from dask_jobqueue import SLURMCluster
+import concurrent.futures
 
+from ..utils.function import Fn
 
+from ..utils.cpr import cprofile
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
@@ -95,7 +100,7 @@ def find_min_among_diagonal_matrix(matrix):
     return min_matrix
 
 def unwrap_self(arg, **kwarg):
-    return RolloutBO.evalConfigs(*arg, **kwarg)
+    return RolloutBO.sample(*arg, **kwarg)
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -258,7 +263,7 @@ class RolloutBO(BO_Interface):
             # exit(1)
             # if sample==1:
             #     exit(1)
-            print('Xs_roots: ', Xs_roots)
+            # print('Xs_roots: ', Xs_roots)
 
             for x in Xs_roots:
                 print('$'*100)
@@ -296,7 +301,7 @@ class RolloutBO(BO_Interface):
             # X_root = deepcopy(Xs_root)
                 
             avgrewards = avgrewards[1:]
-            print('avgrewards: ',avgrewards)
+            # print('avgrewards: ',avgrewards)
             # avgrewards = np.hstack((avgrewards))
             # minrewardDist, minrewardDistIdx = min_diagonal(avgrewards)
             mincumRewardIdx = find_min_diagonal_sum_matrix(avgrewards)
@@ -311,7 +316,7 @@ class RolloutBO(BO_Interface):
             # mainAgents = sorted(mainAgents, key=lambda x: x.id)
 
             agentsWithminSmps = Xs_roots[mincumRewardIdx][2] #agentModels[mincumRewardIdx] #self.get_nextXY(agentModels, minrewardDistIdx)
-            print('agentsWithminSmps: ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
+            # print('agentsWithminSmps: ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
             agentsWithminSmps = sorted(agentsWithminSmps, key=lambda x: x.id)
 
             # partition the actual obs 
@@ -341,10 +346,10 @@ class RolloutBO(BO_Interface):
                         minytrval = min(ia.y_train)
                         minytr = ia.y_train
             ytr = minytr
-            print('?'*100)  
-            print_tree(X_root, MAIN)
-            print_tree(X_root, ROLLOUT)
-            print('?'*100)
+            # print('?'*100)  
+            # print_tree(X_root, MAIN)
+            # print_tree(X_root, ROLLOUT)
+            # print('?'*100)
             x_opt_from_all = []
             for i,a in enumerate(agentsWithminSmps):
                 # minx = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:]
@@ -365,15 +370,23 @@ class RolloutBO(BO_Interface):
                 x_opt = self.ei_roll._opt_acquisition(ytr, a.model, a.region_support.input_space, rng)
                 yofEI, _ = compute_robustness(np.array([x_opt]), test_function, behavior, agent_sample=True)
 
-                print('end of rollout avg smps check ', a.region_support.input_space ,a.region_support.smpXtr, a.region_support.smpYtr)
+                # print('end of rollout avg smps check ', a.region_support.input_space ,a.region_support.smpXtr, a.region_support.smpYtr)
                 # print('end of rollout smps check ', a.region_support.avgsmpXtr, a.region_support.avgsmpYtr)
-                smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
-                yofsmpxtr, _ = compute_robustness(np.array([smpxtr]), test_function, behavior, agent_sample=True) #np.array([smpxtr])
+                # smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
+                k = 10
+                idx = np.argpartition(a.region_support.smpYtr, k)[:k]  # Indices not sorted
+
+                minK = idx[np.argsort(a.region_support.smpYtr[idx])]  # Indices sorted by value from smallest to largest
+
+                smpxtr = a.region_support.smpXtr[minK] 
+
+                yofs = np.array([smpxtr[0]])
+                yofsmpxtr, _ = compute_robustness(yofs, test_function, behavior, agent_sample=True) #np.array([smpxtr])
                 
-                print('yofEI, miny: ',x_opt, yofEI, smpxtr, yofsmpxtr)
-                if yofEI > yofsmpxtr:
-                # x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
-                    x_opt = smpxtr
+                print('yofEI, miny from minK: ',x_opt, yofEI, smpxtr, yofsmpxtr, yofs)
+                if sample >= 2 : #yofEI > np.min(yofsmpxtr):
+                    x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
+                    # x_opt = smpxtr
                 else:
                     agdic[i] +=  1
                 x_opt_from_all.append(x_opt)
@@ -432,6 +445,7 @@ class RolloutBO(BO_Interface):
                 print(dim)
                 root = deepcopy(X_root)
                 factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
+                print(factorized)
                 agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
                 root.add_child(agents_to_subregion)
                 for id, l in enumerate(root.find_leaves()):
@@ -448,7 +462,7 @@ class RolloutBO(BO_Interface):
                 for id, l in enumerate(root.find_leaves()):
                     if l.getStatus(MAIN) == 1:
                         agents.append(l.agent)
-                    print(f'agent x_train b4 partitioning  ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                    # print(f'agent x_train b4 partitioning  ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
                 subregions = reassignUsingRewardDist( root, MAIN, agents, jump_prob=jump)
                 agents = partitionRegions(root, subregions, MAIN, dim)
                 print('after moving and partitioning ')
@@ -531,7 +545,7 @@ class RolloutBO(BO_Interface):
 
         return roots
     
-    @profile
+    # @profile
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
 
@@ -540,7 +554,7 @@ class RolloutBO(BO_Interface):
             return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
+        results = Parallel(n_jobs=8)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
         
         roots = [results[i][0] for i in range(configSamples)]
         agents = [results[i][1] for i in range(configSamples)]
@@ -572,21 +586,62 @@ class RolloutBO(BO_Interface):
 
     #     return results
     
-    # @profile
+    @cprofile
     def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
-        self.ei_roll = RolloutEI()
+        ei_roll = RolloutEI()
+        # srt = pickle.dump(Xs_root)
+        
+        # def internal_function(X, from_agent = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
+        #     x1 = X[0]
+        #     x2 = X[1]
+        #     t = 1 / (8 * np.pi)
+        #     s = 10
+        #     r = 6
+        #     c = 5 / np.pi
+        #     b = 5.1 / (4 * np.pi ** 2)
+        #     a = 1
+        #     term1 = a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2
+        #     term2 = s * (1 - t) * np.cos(x1)
+        #     l1 = 5 * np.exp(-5 * ((x1+3.14)**2 + (x2-12.27)**2))
+        #     l2 = 5 * np.exp(-5 * ((x1+3.14)**2 + (x2-2.275)**2))
+        #     return term1 + term2 + s + l1 + l2
+        
+        # tf = Fn(internal_function)
+        
+        # print('tf : ', tf)
+        horizon = self.horizon
         # print('inside evalConfigs')
         # Define a helper function to be executed in parallel
-        def evaluate_in_parallel(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+        def evaluate_in_parallel(Xs_root_item): #, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
+            ei_roll = RolloutEI()
+            # Xs_root_item = pickle.load(Xs_root_item)
             # print('Xs_root_item in eval config : ',Xs_root_item)
             agents = []
-            return self.ei_roll.sample(sample, Xs_root_item, agents, num_agents, self.tf, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+            return ei_roll.sample(sample, Xs_root_item, agents, num_agents, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item, sample, num_agents, globalXtrain, globalYtrain, region_support, model, rng) for (Xs_root_item) in tqdm(Xs_root))
+        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item) for (Xs_root_item) in tqdm(Xs_root))
+
+        # results = Parallel(n_jobs= 2, backend="loky")\
+        #     (delayed(unwrap_self)(i) for i in zip([self]*2, sample, Xs_root, agents, num_agents, tf, globalXtrain, horizon, globalYtrain, region_support, model, rng))
+    
+        # with Pool(processes=4) as pool:  
+        #     args = [(ei_roll,Xs_root[i], sample, num_agents, globalXtrain, globalYtrain, region_support, model,horizon, rng) for i in range(len(Xs_root))]
+        #     # issue multiple tasks each with multiple arguments
+        #     results = pool.map(evalWrapper, args)
+
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        #     # Submit tasks for each tree node
+        #     futures = [executor.submit(evaluate_in_parallel, node) for node in tqdm(Xs_root)]
+            
+        #     # Gather results
+        #     results = [future.result() for future in concurrent.futures.as_completed(futures)]
+        # arg = (Xs_root, sample, num_agents, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
+        # with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+        #     results = list(executor.map(evaluate_in_parallel, [ei_roll, arg]))
 
         return results
-
+    
     # @profile
     # def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
     #     self.ei_roll = RolloutEI()
