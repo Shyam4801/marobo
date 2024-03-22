@@ -42,6 +42,8 @@ from joblib import wrap_non_picklable_objects
 import dask, time, json
 # from dask_jobqueue import SLURMCluster
 import concurrent.futures
+from itertools import permutations
+import random
 
 from ..utils.function import Fn
 
@@ -208,9 +210,9 @@ class RolloutBO(BO_Interface):
         
         globalXtrain = x_train #globalXtrain[1:]
         globalYtrain = y_train #globalYtrain[1:]
-        if not os.path.exists(f'results/'+configs['testfunc']):
-            os.makedirs(f'results/'+configs['testfunc'])
-        writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])
+        # if not os.path.exists(f'results/'+configs['testfunc']):
+        #     os.makedirs(f'results/'+configs['testfunc'])
+        # writetocsv(f'results/'+configs['testfunc']+'/initSmp',[[globalXtrain[:,0], globalXtrain[:,1],  globalYtrain]])
 
         agentAftereachSample = []
         agentsWithminSmps = 0
@@ -549,14 +551,26 @@ class RolloutBO(BO_Interface):
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
 
+        permutations_list = list(permutations(range(num_agents)))
+        permToeval = configs['configs']['perm']
+        permidx = random.sample(range(0, len(permutations_list)-1), permToeval)
+        permidx= np.repeat(permidx, configSamples)
+        # permutations_list = permutations_list[:permToeval]
+        # print(permidx)
+
         # Define a helper function to be executed in parallel
-        def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-            return genSamplesForConfigs(self.ei_roll, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+        def genSamples_in_parallel(perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+            return genSamplesForConfigs(self.ei_roll, perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=8)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
+        results = Parallel(n_jobs=configs['jobs'])(delayed(genSamples_in_parallel)(permidx[csmp], num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(len(permidx))))
         
-        roots = [results[i][0] for i in range(configSamples)]
+        # print(results)
+        roots = []
+        for xr in range(len(permidx)):
+            # print('-'*100,results[xr][0])
+            roots.extend(results[xr][0])
+        # roots = [results[i][:] for i in range(configSamples)]
         agents = [results[i][1] for i in range(configSamples)]
 
         return roots , agents
@@ -586,27 +600,11 @@ class RolloutBO(BO_Interface):
 
     #     return results
     
-    @cprofile
+    # @cprofile
     def evalConfigs(self, Xs_root, sample, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng):
         ei_roll = RolloutEI()
         # srt = pickle.dump(Xs_root)
         
-        # def internal_function(X, from_agent = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
-        #     x1 = X[0]
-        #     x2 = X[1]
-        #     t = 1 / (8 * np.pi)
-        #     s = 10
-        #     r = 6
-        #     c = 5 / np.pi
-        #     b = 5.1 / (4 * np.pi ** 2)
-        #     a = 1
-        #     term1 = a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2
-        #     term2 = s * (1 - t) * np.cos(x1)
-        #     l1 = 5 * np.exp(-5 * ((x1+3.14)**2 + (x2-12.27)**2))
-        #     l2 = 5 * np.exp(-5 * ((x1+3.14)**2 + (x2-2.275)**2))
-        #     return term1 + term2 + s + l1 + l2
-        
-        # tf = Fn(internal_function)
         
         # print('tf : ', tf)
         horizon = self.horizon
@@ -620,7 +618,7 @@ class RolloutBO(BO_Interface):
             return ei_roll.sample(sample, Xs_root_item, agents, num_agents, globalXtrain, self.horizon, globalYtrain, region_support, model, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(evaluate_in_parallel)(Xs_root_item) for (Xs_root_item) in tqdm(Xs_root))
+        results = Parallel(n_jobs=configs['jobs'])(delayed(evaluate_in_parallel)(Xs_root_item) for (Xs_root_item) in tqdm(Xs_root))
 
         # results = Parallel(n_jobs= 2, backend="loky")\
         #     (delayed(unwrap_self)(i) for i in zip([self]*2, sample, Xs_root, agents, num_agents, tf, globalXtrain, horizon, globalYtrain, region_support, model, rng))

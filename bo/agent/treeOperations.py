@@ -791,132 +791,129 @@ def find_parent(root, target):
 
     return None
 
-def genSamplesForConfigs(ei, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         avgrewards = np.zeros((1,num_agents,num_agents))
         agentModels = []
         xroots = []
 
-        # for regsamples in range(configSamples):
                 
         print("total comb of roots with assign and dim: ",len(roots))
         # print()
         # print([obj.__dict__ for obj in roots])
         # print()
         permutations_list = list(permutations(range(num_agents)))
-        permToeval = configs['configs']['perm']
-        permutations_list = permutations_list[:permToeval]
-        for perm in range(len(permutations_list)):
-            for Xs_root in roots:
-                # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
-                # rtPrior = Prior(x_train, y_train, model, MAIN)
-                # Xs_root.addFootprint(rtPrior, MAIN)
-                # _,_, model = Xs_root.mainPrior.getData(MAIN)
-                # Xs_root.model = deepcopy(model)
-                # state = np.random.get_state()
+        
+        for Xs_root in roots:
+            # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
+            # rtPrior = Prior(x_train, y_train, model, MAIN)
+            # Xs_root.addFootprint(rtPrior, MAIN)
+            # _,_, model = Xs_root.mainPrior.getData(MAIN)
+            # Xs_root.model = deepcopy(model)
+            # state = np.random.get_state()
 
-                # # Print the seed value
-                # print("Seed value:", state[1][0])
-                agents = []
-                # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
-                nid = 0
-                for id, l in enumerate(Xs_root.find_leaves()):
-                    l.setRoutine(MAIN)
-                    nid = nid % num_agents
-                    if l.getStatus(MAIN) == 1:
-                        # if l.agent.model == None:
-                        #     parent = find_parent(Xs_root, l)
-                        #     model = parent.model
-                        # else:
-                        #     model = l.agent.model
-                        
-                        # xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
-                        # print(idx, id,i, len(permutations_list))
-                        # mainag = Agent(permutations_list[perm][nid], None, xtr, ytr, l)
-                        # mainag(MAIN)
-                        mainag = l.agent
-                        l.addAgentList(mainag, MAIN)
-                        # mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
-                        # mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
-                        mainag.id = permutations_list[perm][nid]
-                        
-                        nid += 1
-                        agents.append(mainag)
-                # moreRoots.append(deepcopy(rt))
-                
-                    # l.setRoutine(MAIN)
-                    # if l.getStatus(MAIN) == 1:
-                    #     # if sample != 0:
-                    #     xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
-                        # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
-                        # print(f'agent actual xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
+            # # Print the seed value
+            # print("Seed value:", state[1][0])
+            agents = []
+            # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
+            nid = 0
+            for id, l in enumerate(Xs_root.find_leaves()):
+                l.setRoutine(MAIN)
+                nid = nid % num_agents
+                if l.getStatus(MAIN) == 1:
+                    # if l.agent.model == None:
+                    #     parent = find_parent(Xs_root, l)
+                    #     model = parent.model
                     # else:
-                    #     print(f'inactive xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
-                    #     print(f'agent xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
+                    #     model = l.agent.model
+                    
+                    # xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                    # print(idx, id,i, len(permutations_list))
+                    # mainag = Agent(permutations_list[perm][nid], None, xtr, ytr, l)
+                    # mainag(MAIN)
+                    mainag = l.agent
+                    l.addAgentList(mainag, MAIN)
+                    # mainag.x_train = xtr #np.vstack((mainag.x_train, xtr))
+                    # mainag.y_train = ytr #np.hstack((mainag.y_train, ytr))
+                    mainag.id = permutations_list[perm][nid]
+                    
+                    nid += 1
+                    agents.append(mainag)
+            # moreRoots.append(deepcopy(rt))
+            
+                # l.setRoutine(MAIN)
+                # if l.getStatus(MAIN) == 1:
+                #     # if sample != 0:
+                #     xtr, ytr = initAgents(l.agent.model, l.input_space, init_sampling_type, tf_dim*5, tf_dim, tf, behavior, rng, store=True)
+                    # print(f'agent xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                    # print(f'agent actual xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
+                # else:
+                #     print(f'inactive xtr ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
+                #     print(f'agent xtr ', l.agent.ActualXtrain, l.agent.ActualYtrain, l.agent.id, l.input_space)
 
-                    #     ag = l.agent
-                    #     ag.x_train = xtr #np.vstack((ag.x_train, xtr))
-                    #     ag.y_train = ytr #np.hstack((ag.y_train, ytr))
-                    #     # ag = Agent(id, None, xtr, ytr, l)
-                    #     # ag.updateModel()
-                    #     ag(MAIN)
-                    #     agents.append(ag)
-                minytrval = float('inf')
-                minytr = []
-                for ix, a in enumerate(agents):
-                    for ia in agents:
-                        if min(ia.y_train) < minytrval:
-                            minytrval = min(ia.y_train)
-                            minytr = ia.y_train
-                            
+                #     ag = l.agent
+                #     ag.x_train = xtr #np.vstack((ag.x_train, xtr))
+                #     ag.y_train = ytr #np.hstack((ag.y_train, ytr))
+                #     # ag = Agent(id, None, xtr, ytr, l)
+                #     # ag.updateModel()
+                #     ag(MAIN)
+                #     agents.append(ag)
+            minytrval = float('inf')
+            minytr = []
+            for ix, a in enumerate(agents):
+                for ia in agents:
+                    if min(ia.y_train) < minytrval:
+                        minytrval = min(ia.y_train)
+                        minytr = ia.y_train
+                        
+            
+            agents = sorted(agents, key=lambda x: x.id)
+            agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
+            for a in agents:
+                # if sample == 0:
+                #     a.ActualXtrain == 
+                xtsize = int((tf_dim*10)) - len(a.x_train)
+                if xtsize > 0: 
+                    # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
+
+                    x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)
+                    y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
                 
-                agents = sorted(agents, key=lambda x: x.id)
-                agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
-                for a in agents:
-                    # if sample == 0:
-                    #     a.ActualXtrain == 
-                    xtsize = int((tf_dim*10)) - len(a.x_train)
-                    if xtsize > 0: 
-                        # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
+                    a.x_train = np.vstack((a.x_train, x_train))
+                    a.y_train = np.hstack((a.y_train, y_train))
 
-                        x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)
-                        y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
-                    
-                        a.x_train = np.vstack((a.x_train, x_train))
-                        a.y_train = np.hstack((a.y_train, y_train))
-
-                        # a.updateModel()
-                    assert check_points(a, MAIN) == True
-                    a.updateModel()
-                    a.resetModel()
-                    a.region_support.addFootprint(a.x_train, a.y_train, a.model)
-                    
-                    assert check_points(a, ROLLOUT) == True
-                    # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
-
-                    xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
-                    
-                    x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
-                    x_opt = np.asarray([x_opt])
-                    mu, std = ei._surrogate(a.model, x_opt)
-                    f_xt = np.random.normal(mu,std,1)
-                    xtr = np.vstack((xtr , x_opt))
-                    ytr = np.hstack((ytr, f_xt))
-                    # print('ei pt to eval : ',x_opt, f_xt)
-
-                    a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
-                    a.region_support.smpYtr = ytr
-                    a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
-                    a.simReg.smpYtr = ytr
-                    assert a.region_support.check_points() == True
-                    assert a.simReg.check_points() == True
+                    # a.updateModel()
+                assert check_points(a, MAIN) == True
+                a.updateModel()
+                a.resetModel()
+                a.region_support.addFootprint(a.x_train, a.y_train, a.model)
                 
+                assert check_points(a, ROLLOUT) == True
+                # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                # print(f'_________________  ____________________')
-                # model = GPR(gpr_model)
-                # model.fit(globalXtrain, globalYtrain)
-                agentModels.append(deepcopy(agents))
-                # srt = pickle.dump(deepcopy(Xs_root))
-                xroots.append(deepcopy(Xs_root))
+                xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
+                
+                x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
+                x_opt = np.asarray([x_opt])
+                mu, std = ei._surrogate(a.model, x_opt)
+                f_xt = np.random.normal(mu,std,1)
+                xtr = np.vstack((xtr , x_opt))
+                ytr = np.hstack((ytr, f_xt))
+                # print('ei pt to eval : ',x_opt, f_xt)
+
+                a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                a.region_support.smpYtr = ytr
+                a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                a.simReg.smpYtr = ytr
+                assert a.region_support.check_points() == True
+                assert a.simReg.check_points() == True
+            
+
+            # print(f'_________________  ____________________')
+            # model = GPR(gpr_model)
+            # model.fit(globalXtrain, globalYtrain)
+            agentModels.append(deepcopy(agents))
+            # srt = pickle.dump(deepcopy(Xs_root))
+            xroots.append(deepcopy(Xs_root))
                 # exit(1)
         return xroots, agentModels
 

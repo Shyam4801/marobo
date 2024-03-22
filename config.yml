@@ -1,11 +1,15 @@
+seed: 1
 sampling:
-  initBudget: 10
+  initBudget: 20
+  maxbud: 22
   mc_iters: 4
   num_inactive: 100
 log:
   interval: 4
-testfunc: 'rastrigin'
+testfunc: 'mod_branin'
 configs:
-  perm: 1
-  smp: 1
-parallel: True
+  perm: 2
+  smp: 2
+parallel: False
+jobs: 60
+

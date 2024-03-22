@@ -18,6 +18,10 @@ from bo.utils.loggScript import *
 import datetime, os, time
 from bo.utils.logger import logMeta
 import math
+import yaml
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
 
 def from_unit_box(x, lb, ub):
     return lb + (ub - lb) * x
@@ -63,17 +67,17 @@ def logdf(data,jobid, init_samp,maxbud, name, yofmins, rollout=False):
         rl='rollout'
     else:
         rl = 'n'
-    timestmp = 'results/rastrigin/'+str(jobid)+'/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+    timestmp = 'results/'+configs['testfunc']+'/'+str(jobid)+'/'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
     if not os.path.exists(timestmp):
         os.makedirs(timestmp)
     # tot_samples = xcoord['y'][:10]
     # tot_samples.append(xcoord['y'][init_samp:].rolling(window=4).min())
     # reduced_df = pd.DataFrame(tot_samples)
     dfdic = xcoord.iloc[:init_samp,:-2].to_dict()
-    initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
-    with open(initpath+f'/initsmp_{name}.pickle', 'wb') as handle:
-        pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    timestmp = 'results/mod_branin'
+    # initpath = '/Users/shyamsundar/MS/resume/gitrepo/non-myopic_bo/results/fromagents'
+    # with open(initpath+f'/initsmp_{name}.pickle', 'wb') as handle:
+    #     pickle.dump(dfdic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # timestmp = 'results/mod_branin'
     xcoord.to_csv(timestmp+'/'+str(name)+'_'+str(init_samp)+'_'+str(maxbud)+rl+'.csv')
     plot_convergence(xcoord.iloc[init_samp:], timestmp+'/'+name+str(maxbud)+'_'+rl)
     xcoord = xcoord.to_numpy()
@@ -195,13 +199,13 @@ class Test_internalBO(unittest.TestCase):
         
         sd = int(time.time())
         # seeds.append(sd)
-        seed = task_id + 2#12345
+        seed = task_id+configs['seed'] #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 100
-        maxbud = 102
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         name = Test_internalBO.rastrigin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -336,10 +340,10 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        
+        seed = task_id+configs['seed'] 
 
-        init_samp = 20
-        maxbud = 25
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         name = Test_internalBO.mod_branin.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -493,15 +497,18 @@ class Test_internalBO(unittest.TestCase):
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []
         # glob_mins=[]
-        seed = 12345
+        # seed = 12345
         sd = task_id
         # region_support = np.array([[-1, 1],[-2, 2]])
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 1
-        maxbud = 11
+        seed = task_id+configs['seed'] 
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -572,15 +579,17 @@ class Test_internalBO(unittest.TestCase):
         glob_mins = np.array([[0.114614,0.555649,0.852547,0.653893]])
         y_of_mins = []
         # glob_mins=[]
-        seed = 12345
+        # seed = 12345
         sd = task_id
         # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 1
-        maxbud = 6
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -627,15 +636,17 @@ class Test_internalBO(unittest.TestCase):
         glob_mins = np.array([[-0.0898,0.7126]])
         y_of_mins = []
         # glob_mins=[]
-        seed = 12345
+        # seed = 12345
         sd = task_id
         # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 1
-        maxbud = 3
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -680,17 +691,17 @@ class Test_internalBO(unittest.TestCase):
         # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []
         # glob_mins=[]
-        seed = task_id + 2#123
+        # seed = task_id + 2#123
         sd = task_id
         # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        
-
-        init_samp = 20
-        maxbud = 22
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         name = Test_internalBO.griewank.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
@@ -738,14 +749,84 @@ class Test_internalBO(unittest.TestCase):
         sd = task_id
         # region_support = np.array([[-1, 1],[-2, 2]])
 
+        seed = task_id+configs['seed'] #12345
+
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        
-
-        init_samp = 20
-        maxbud = 22
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         name = Test_internalBO.griewank.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
+
+    
+    def langermann(self):
+        def internal_function(x, from_agent = None): # glob min at [6.99999997 8.99999999 3.99999999 1.99999998 7.99999998 0.99999997 5.99999998 2.99999999 4.99999998 1.99999997]
+                                                            #Function value at global minimum: -3.0000000000594165 | for 2D [2,1] f(x) = -3
+            m = 5
+            c = [1, 2, 5, 2, 3]
+            a = np.array([[3, 5, 2, 1, 7, 4, 9, 6, 8, 2],
+                        [5, 2, 1, 6, 4, 9, 3, 8, 2, 7],
+                        [8, 6, 7, 2, 5, 3, 1, 9, 4, 2],
+                        [6, 1, 9, 3, 8, 7, 4, 2, 5, 2],
+                        [7, 9, 4, 2, 8, 1, 6, 3, 5, 2]])
+            pi = np.pi
+            
+            sum1 = 0
+            for i in range(m):
+                sum2 = 0
+                for j in range(len(x)):
+                    sum2 += (x[j] - a[i][j])**2
+                sum1 -= c[i] * np.exp(-1/np.pi * sum2) * np.cos(np.pi * sum2)
+            
+            return sum1
+        
+        range_array = np.array([[0, 10]])  
+        region_support = np.tile(range_array, (10, 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
+        # glob_mins=[]
+        # seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+        name = Test_internalBO.langermann.__name__
         logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
         opt = PerformBO(
