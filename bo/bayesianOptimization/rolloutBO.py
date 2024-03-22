@@ -552,8 +552,8 @@ class RolloutBO(BO_Interface):
         self.ei_roll = RolloutEI()
 
         permutations_list = list(permutations(range(num_agents)))
-        permToeval = configs['configs']['perm']
-        permidx = random.sample(range(0, len(permutations_list)-1), permToeval)
+        permToeval = configs['configs']['perm']        
+        permidx = random.sample(range(0, len(permutations_list)), permToeval)
         permidx= np.repeat(permidx, configSamples)
         # permutations_list = permutations_list[:permToeval]
         # print(permidx)

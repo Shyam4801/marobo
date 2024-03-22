@@ -604,7 +604,7 @@ class Test_internalBO(unittest.TestCase):
 
         data, rg, plot_res = opt(bo, gpr_model)
 
-        name = Test_internalBO.mod_branin.__name__
+        name = Test_internalBO.hartmann6d.__name__
         minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
 
         init_vol = compute_volume(region_support)
