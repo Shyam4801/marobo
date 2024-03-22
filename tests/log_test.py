@@ -925,5 +925,66 @@ class Test_internalBO(unittest.TestCase):
         print('_______________________________')
         print(minobs)
 
+
+
+    def shubert(self):
+        def internal_function(x, from_agent = None):
+            result = 1
+            for i in range(len(x)):
+                summation = 0
+                for j in range(1, 6):
+                    term = j * np.cos((j + 1) * x[i] + j)
+                    summation += term
+                result *= summation
+            return result
+        
+        range_array = np.array([[-10, 10]])  
+        region_support = np.tile(range_array, (2, 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
+        # glob_mins=[]
+        # seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+        name = Test_internalBO.shubert.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= 4,
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
+
 if __name__ == "__main__":
     unittest.main()
