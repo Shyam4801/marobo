@@ -4,6 +4,10 @@ import random
 from .constants import *
 from copy import deepcopy
 from bo.utils.volume import compute_volume
+import yaml
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
 
 class Node:
     def __init__(self, input_space, status) -> None:
@@ -13,8 +17,8 @@ class Node:
         self.rolloutStatus = status
         self.agent = None
         self.reward = []
-        self.rewardDist = np.zeros((4))
-        self.avgRewardDist = np.zeros((1,4))
+        self.rewardDist = np.zeros((configs['agents']))
+        self.avgRewardDist = np.zeros((1,configs['agents']))
         self.numAgents = status
         self.agentList = []
         self.avgReward = 0

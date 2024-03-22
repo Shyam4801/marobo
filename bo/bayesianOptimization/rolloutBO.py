@@ -146,7 +146,7 @@ class RolloutBO(BO_Interface):
             x_new
             y_new
         """
-        self.horizon = 4
+        self.horizon = configs['horizon']
         falsified = False
         self.tf = test_function
         self.agent_point_hist = []
@@ -216,7 +216,7 @@ class RolloutBO(BO_Interface):
 
         agentAftereachSample = []
         agentsWithminSmps = 0
-        agdic = {0:0,1:0,2:0,3:0}
+        # agdic = {0:0,1:0,2:0,3:0}
         # client = self.getWorkers()
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalYtrain))
@@ -389,8 +389,8 @@ class RolloutBO(BO_Interface):
                 if sample >= 2 : #yofEI > np.min(yofsmpxtr):
                     x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
                     # x_opt = smpxtr
-                else:
-                    agdic[i] +=  1
+                # else:
+                #     agdic[i] +=  1
                 x_opt_from_all.append(x_opt)
             # exit(1)
             subx = np.hstack((x_opt_from_all)).reshape((num_agents,tf_dim))
@@ -431,7 +431,7 @@ class RolloutBO(BO_Interface):
         # # print(plot_dict)
         # save_node(save_plot_dict, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/plot_dict.pkl')
         print()
-        print('times when EI pt was chosen',agdic)
+        # print('times when EI pt was chosen',agdic)
         print()
         return falsified, self.region_support , None #plot_dict
 

@@ -16,55 +16,72 @@ with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
 
 
-def split_region(root,dim,num_agents):
-    # print('split_region: dim',dim, num_agents)
-    region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
-    final = []
+# def split_region(root,dim,num_agents):
+#     # print('split_region: dim',dim, num_agents)
+#     region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
+#     final = []
 
-    for i in range(len(region)-1):
-        final.append([region[i], region[i+1]])
-    regs = []
-    for i in range(len(final)):
-        org = root.input_space.copy()
-        org[dim] = final[i]
-        regs.append(org)
+#     for i in range(len(region)-1):
+#         final.append([region[i], region[i+1]])
+#     regs = []
+#     for i in range(len(final)):
+#         org = root.input_space.copy()
+#         org[dim] = final[i]
+#         regs.append(org)
 
-    regs = [Node(i, 1) for i in regs]
-    return regs
+#     regs = [Node(i, 1) for i in regs]
+#     return regs
     
+
 # def get_subregion(root, num_agents, dic, dim):
 #     q = [root]
-#     used_dims = set()  # Keep track of dimensions already used for splitting
-
 #     while len(q) < num_agents:
 #         cuts = dim % len(dic) 
 #         if len(q) % dic[cuts] == 0:
-#             # Ensure each dimension is considered at least once before repeating
-#             dim = np.random.choice([i for i in range(dim+1) if i not in used_dims])
-#             used_dims.add(dim)
-
+#             dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
 #         curr = q.pop(0)
+        
+#         # print('dim :', dim,'q: ', [i.input_space for i in q])
 #         ch = split_region(curr, dim, dic[cuts])
 #         curr.add_child(ch)
 #         q.extend(ch)
-
+#         # if len(q) % dic[cuts] == 0:
+#         #     dim = (dim + 1) % len(root.input_space)
 #     return q
 
-def get_subregion(root, num_agents, dic, dim):
+def split_region(root, dim, num_agents):
+    region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num=num_agents+1)
+    final = []
+
+    for i in range(len(region) - 1):
+        final.append([region[i], region[i + 1]])
+
+    regs = []
+    for interval in final:
+        org = root.input_space.copy()
+        org[dim] = interval
+        regs.append(Node(org, 1))
+
+    return regs
+
+def get_subregion(root, num_agents, dic, dims):
     q = [root]
+    dimensions = list(range(len(root.input_space)))
     while len(q) < num_agents:
-        cuts = dim % len(dic) 
-        if len(q) % dic[cuts] == 0:
-            dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
         curr = q.pop(0)
-        
-        # print('dim :', dim,'q: ', [i.input_space for i in q])
-        ch = split_region(curr, dim, dic[cuts])
-        curr.add_child(ch)
-        q.extend(ch)
-        # if len(q) % dic[cuts] == 0:
-        #     dim = (dim + 1) % len(root.input_space)
+        if dimensions:
+            dim = dimensions.pop(0)
+            ch = split_region(curr, dim, num_agents - len(q))
+            curr.add_child(ch)
+            q.extend(ch)
+            if dimensions:
+                dimensions = dimensions[1:] + [dimensions[0]]  # Rotate dimensions
+        else:
+            # If all dimensions have been used, break out of the loop
+            break
+
     return q
+
 
 def print_tree(node, routine, level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
@@ -103,6 +120,28 @@ def print_tree(node, routine, level=0, prefix=''):
 #     # close_pairs = [(f1, f2) for f1, f2 in factor_pairs if abs(f1 - f2) <= 5]
 
 #     return close_pairs
+def remove_duplicates(lst):
+    seen = set()
+    unique = []
+
+    for sublst in lst:
+        subtuple = tuple(sublst)
+        if subtuple not in seen:
+            unique.append(sublst)
+            seen.add(subtuple)
+
+    return unique
+
+def find_factors(num_sub_regions):
+    factors = []
+    for i in range(1, num_sub_regions + 1):
+        if num_sub_regions % i == 0:
+            factors.append([i, num_sub_regions // i])
+            if i != 1 and i != num_sub_regions:
+                factors.append([num_sub_regions // i, i])
+    
+    factors = remove_duplicates(factors)
+    return factors[1]
 
 def find_prime_factors(number):
     prime_factors = []
@@ -394,6 +433,7 @@ def reassignPerAgentUsingRewardDist(currentAgentIdx, root, routine, agents):
 
 def reassignUsingRewardDist(root, routine, agents, jump_prob):
     subregs = root.find_leaves() 
+    numagents = configs['agents']
     
     rewardStack = []
     subregs = sorted(subregs, key=lambda x: (x.getStatus(routine) == 0, x.agent.id if x.getStatus(routine) == 1 else None))
@@ -409,7 +449,7 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         #     print(agent)
     # print('rewardStack: ',rewardStack)
     minsubreg = np.asarray(rewardStack, dtype="object")
-    minsubreg = minsubreg.reshape((len(subregs), 4))
+    minsubreg = minsubreg.reshape((len(subregs), numagents))
     # if routine == MAIN:
         # print('minsubreg: nx4 arr: ',minsubreg, minsubreg.shape)
     
@@ -417,7 +457,7 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
     # sorted_indices = sorted(enumerate(minsubreg), key=lambda x: x[1])
     # # Extract the sorted indices
     # sorted_indices_only = [index for index, value in sorted_indices]
-    assert (len(subregs), 4) == (minsubreg.shape[0], minsubreg.shape[1])
+    assert (len(subregs), numagents) == (minsubreg.shape[0], minsubreg.shape[1])
 
     agent0 = minsubreg[:,0]
     
@@ -494,6 +534,7 @@ def partitionRegions(root, subregions, routine, dim):
             internal_factorized = find_prime_factors(subr.getnumAgents(routine))
             ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
             subr.add_child(ch)
+            # print('len(ch),subr.getnumAgents(routine) : ',internal_factorized,len(ch),subr.getnumAgents(routine))
             assert len(ch) == subr.getnumAgents(routine)
 
             # assign the agents to the new childs 
@@ -871,8 +912,8 @@ def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim
             for a in agents:
                 # if sample == 0:
                 #     a.ActualXtrain == 
-                xtsize = int((tf_dim*10)) - len(a.x_train)
-                if xtsize > 0: 
+                xtsize = int((tf_dim*3)) - len(a.x_train)
+                if len(a.x_train) == 0 :#xtsize > 0: 
                     # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
                     x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)

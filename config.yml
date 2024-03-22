@@ -1,15 +1,17 @@
 seed: 1
 sampling:
-  initBudget: 20
-  maxbud: 22
+  initBudget: 60
+  maxbud: 63
   mc_iters: 4
   num_inactive: 100
 log:
   interval: 4
 testfunc: 'mod_branin'
 configs:
-  perm: 2
+  perm: 8
   smp: 2
 parallel: False
 jobs: 60
+agents: 8
+horizon: 8
 
