@@ -248,7 +248,7 @@ class RolloutEI(InternalBO):
         self.agents = agents
         # print('inside ')
         if not configs['parallel']:
-            self.root = self.get_pt_reward(4)
+            self.root = self.get_pt_reward(configs['sampling']['mc_iters'])
         else:
             self.root = self._evaluate_at_point_list(agents)
         # print("Tree after MC iters get_exp_values: ")

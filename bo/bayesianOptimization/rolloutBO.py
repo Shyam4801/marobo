@@ -420,6 +420,9 @@ class RolloutBO(BO_Interface):
                 # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
             
             print_tree(X_root, MAIN)
+            if not os.path.exists('results/node'):
+                os.makedirs('results/node')
+            save_node(X_root,f'results/node/X_root_{sample}.pkl')
             # exit(1)
         #     inactive_subregion_samples = []   
         #     self.agent_point_hist.extend(pred_sample_x)

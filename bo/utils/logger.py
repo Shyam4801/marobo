@@ -8,7 +8,7 @@ import threading
 import csv
 
 LOGPATH = 'results/timerlog.txt'
-LOGRESULTSPATH = 'results/rastrigin/logDir'
+LOGRESULTSPATH = 'results/func/logDir'
 # logging.basicConfig(filename=LOGRESULTSPATH+'test.txt', level=logging.INFO, format="%(asctime)s - Variable: %(message)s")
 metadata = ""
 JOBID = ""
