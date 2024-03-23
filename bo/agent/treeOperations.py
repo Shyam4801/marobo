@@ -10,78 +10,42 @@ import yaml, pickle
 from collections import defaultdict
 # from bo.bayesianOptimization.rolloutEI import RolloutEI
 from joblib import wrap_non_picklable_objects
-
+import random
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
 
 
-# def split_region(root,dim,num_agents):
-#     # print('split_region: dim',dim, num_agents)
-#     region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
-#     final = []
-
-#     for i in range(len(region)-1):
-#         final.append([region[i], region[i+1]])
-#     regs = []
-#     for i in range(len(final)):
-#         org = root.input_space.copy()
-#         org[dim] = final[i]
-#         regs.append(org)
-
-#     regs = [Node(i, 1) for i in regs]
-#     return regs
-    
-
-# def get_subregion(root, num_agents, dic, dim):
-#     q = [root]
-#     while len(q) < num_agents:
-#         cuts = dim % len(dic) 
-#         if len(q) % dic[cuts] == 0:
-#             dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
-#         curr = q.pop(0)
-        
-#         # print('dim :', dim,'q: ', [i.input_space for i in q])
-#         ch = split_region(curr, dim, dic[cuts])
-#         curr.add_child(ch)
-#         q.extend(ch)
-#         # if len(q) % dic[cuts] == 0:
-#         #     dim = (dim + 1) % len(root.input_space)
-#     return q
-
-def split_region(root, dim, num_agents):
-    region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num=num_agents+1)
+def split_region(root,dim,num_agents):
+    # print('split_region: dim',dim, num_agents)
+    region = np.linspace(root.input_space[dim][0], root.input_space[dim][1], num = num_agents+1)
     final = []
 
-    for i in range(len(region) - 1):
-        final.append([region[i], region[i + 1]])
-
+    for i in range(len(region)-1):
+        final.append([region[i], region[i+1]])
     regs = []
-    for interval in final:
+    for i in range(len(final)):
         org = root.input_space.copy()
-        org[dim] = interval
-        regs.append(Node(org, 1))
+        org[dim] = final[i]
+        regs.append(org)
 
+    regs = [Node(i, 1) for i in regs]
     return regs
-
-def get_subregion(root, num_agents, dic, dims):
+    
+def get_subregion(root, num_agents, dic, dim):
+    dic = sorted(dic, reverse=True)
     q = [root]
-    dimensions = list(range(len(root.input_space)))
     while len(q) < num_agents:
+        for c in range(len(dic)):
+                if num_agents - len(q) >= dic[c]-1:
+                    cuts = c
+                    break
+        dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
         curr = q.pop(0)
-        if dimensions:
-            dim = dimensions.pop(0)
-            ch = split_region(curr, dim, num_agents - len(q))
-            curr.add_child(ch)
-            q.extend(ch)
-            if dimensions:
-                dimensions = dimensions[1:] + [dimensions[0]]  # Rotate dimensions
-        else:
-            # If all dimensions have been used, break out of the loop
-            break
-
+        ch = split_region(curr, dim, dic[cuts])
+        curr.add_child(ch)
+        q.extend(ch)
     return q
-
 
 def print_tree(node, routine, level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
@@ -534,7 +498,7 @@ def partitionRegions(root, subregions, routine, dim):
             internal_factorized = find_prime_factors(subr.getnumAgents(routine))
             ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
             subr.add_child(ch)
-            # print('len(ch),subr.getnumAgents(routine) : ',internal_factorized,len(ch),subr.getnumAgents(routine))
+            # print('len(ch),subr.getnumAgents(routine) : ',internal_factorized,len(ch),subr.getnumAgents(routine), subr.input_space)
             assert len(ch) == subr.getnumAgents(routine)
 
             # assign the agents to the new childs 
@@ -547,6 +511,7 @@ def partitionRegions(root, subregions, routine, dim):
                     rt = 'MAIN'
                 else:
                     rt = 'ROLLOUT'
+                # print('ch :',ch[idx].input_space)
                 # print(f'b4 upadting from parent {rt}',agent.id, [agent.x_train if routine == MAIN else agent.simXtrain], [agent.y_train if routine == MAIN else agent.simYtrain])
                 agent.updateObs(subr, routine)
                 ch[idx].updatesmpObs(subr)
@@ -726,7 +691,7 @@ def splitsmpObs(region):  #, tf_dim, rng):
     region.smpYtr = filtered_values
 
     if len(filtered_points) == 0:
-        print(' filtered pts in reg empty:',  region.input_space)
+        # print(' filtered pts in reg empty:',  region.input_space)
 
         # actregSamples = lhs_sampling(tf_dim*10 , region.input_space, tf_dim, rng)  #self.tf_dim*10
         # mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
