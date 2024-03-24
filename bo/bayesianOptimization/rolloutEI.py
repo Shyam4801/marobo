@@ -317,7 +317,7 @@ class RolloutEI(InternalBO):
         self.agents = agents
         serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
         # print('serial_mc_iters using job lib',serial_mc_iters)
-        results = Parallel(n_jobs= -1, backend="loky")\
+        results = Parallel(n_jobs= 4, backend="loky")\
             (delayed(unwrap_self)(i) for i in zip([self]*len(serial_mc_iters), serial_mc_iters))
         # print('_evaluate_at_point_list results',results)
         # for i in results:
@@ -329,7 +329,7 @@ class RolloutEI(InternalBO):
             lvs = lf.find_leaves()
             # print('len leaves : ', len(lvs))
             # print('leaves reward :', [i.avgReward for i in lvs])
-            tmp = np.array([i.avgRewardDist for i in lvs], dtype='object')
+            tmp = np.array([i.avgRewardDist for i in lvs], dtype=np.float64)
             # print('tmp b4 :',tmp)
             tmp = tmp.reshape((1,len(lvs),self.num_agents)) #np.hstack(tmp)
             # print('tmp after :',tmp)
@@ -383,7 +383,7 @@ class RolloutEI(InternalBO):
                 # sima.avgRewardDist = sima.rewardDist
                 # print('sima region to accumuulate rewardDist:', sima.input_space, sima.avgRewardDist)#, sima.avgRewardDist.shape,np.asarray(sima.rewardDist).shape )
                 # print('--------------------------------------')
-                sima.rewardDist = np.asarray(sima.rewardDist, dtype="object").reshape((1, self.num_agents))
+                sima.rewardDist = np.asarray(sima.rewardDist, dtype=np.float64).reshape((1, self.num_agents))
                 sima.avgRewardDist = np.vstack((sima.avgRewardDist, sima.rewardDist))
                 # print('sima.smpXtr.shape: b4',sima.smpXtr.shape,sima.smpYtr.shape)
                 Xtr, Ytr = accumulateSamples(sima)
@@ -688,17 +688,24 @@ class RolloutEI(InternalBO):
                 else:
                     # parentnode = find_parent(rl_root, agent.simReg)
                     # agent.simModel = deepcopy(parentnode.model)
-                    actregSamples = lhs_sampling(self.tf_dim*10 , agent.simReg.input_space, self.tf_dim, self.rng)  #self.tf_dim*10
-                    mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
-                    actY = []
-                    for i in range(len(actregSamples)):
-                        f_xt = np.random.normal(mu[i],std[i],1)
-                        actY.append(f_xt)
-                    actY = np.hstack((actY))
-                    # # print('act Y ',actY)
-                    agent.simXtrain = np.vstack((agent.simXtrain , actregSamples))
-                    agent.simYtrain = np.hstack((agent.simYtrain, actY))
-                    agent.updatesimModel()
+                    try:
+                        actregSamples = lhs_sampling(self.tf_dim*10 , agent.simReg.input_space, self.tf_dim, self.rng)  #self.tf_dim*10
+                        mu, std = self._surrogate(agent.simModel, actregSamples)  #agent.simModel
+                        actY = []
+                        for i in range(len(actregSamples)):
+                            f_xt = np.random.normal(mu[i],std[i],1)
+                            actY.append(f_xt)
+                        actY = np.hstack((actY))
+                        # # print('act Y ',actY)
+                        agent.simXtrain = np.vstack((agent.simXtrain , actregSamples))
+                        agent.simYtrain = np.hstack((agent.simYtrain, actY))
+                        agent.updatesimModel()
+                    except ValueError:
+                        parentnode = find_parent(rl_root, agent.simReg)
+                        agent.simXtrain = deepcopy(parentnode.simXtrain)
+                        agent.simYtrain = deepcopy(parentnode.simYtrain)
+                        agent.simModel = deepcopy(parentnode.model)
+                    
                 
                 # print('-'*100)
                 # print(lv)

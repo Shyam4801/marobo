@@ -1,0 +1,170 @@
+No falsification in Initial Samples. Performing BO now
+globalXtrain, globalYtrain : 2.1531298913984287
+_____________________________________ 0
+_____________________________________
+global dataset :  (60, 2) (60,)
+_____________________________________
+0
+[2, 2]
+1
+[2, 2]
+roots after dim:  [<bo.agent.partition.Node object at 0x152c14c70>, <bo.agent.partition.Node object at 0x152c15a50>]
+    |   -- [92m[-2.5   0.25 -2.5   0.25][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]0[0m
+    |   -- [92m[ 0.25  3.   -2.5   0.25][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]1[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5    3.    -2.5   -1.125][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5    3.    -1.125  0.25 ][[0. 0. 0. 0.]]0[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]1[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5   0.25 -2.5   0.25][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]0[0m
+    |   -- [92m[ 0.25  3.   -2.5   0.25][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]1[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5    3.    -2.5   -1.125][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5    3.    -1.125  0.25 ][[0. 0. 0. 0.]]0[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]1[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5   0.25 -2.5   0.25][[0. 0. 0. 0.]]1[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[ 0.25  3.   -2.5   0.25][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]0[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5    3.    -2.5   -1.125][[0. 0. 0. 0.]]1[0m
+    |   -- [92m[-2.5    3.    -1.125  0.25 ][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]0[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5   0.25 -2.5   0.25][[0. 0. 0. 0.]]1[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[ 0.25  3.   -2.5   0.25][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]0[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+    |   -- [92m[-2.5    3.    -2.5   -1.125][[0. 0. 0. 0.]]1[0m
+    |   -- [92m[-2.5    3.    -1.125  0.25 ][[0. 0. 0. 0.]]2[0m
+    |   -- [92m[-2.5   0.25  0.25  3.  ][[0. 0. 0. 0.]]3[0m
+        -- [92m[0.25 3.   0.25 3.  ][[0. 0. 0. 0.]]0[0m
+-- [92m[-2.5  3.  -2.5  3. ][[0. 0. 0. 0.]]-1[0m
+xroots and agents b4 joblib :  8 2
+total comb of roots with assign and dim:  2
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 113, in get
+    if not self._poll(timeout):
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/connection.py", line 424, in _poll
+    r = wait([self], timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/connection.py", line 931, in wait
+    ready = selector.select(timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/selectors.py", line 416, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+Traceback (most recent call last):
+  File "/Users/shyamsundar/Library/Caches/pypoetry/virtualenvs/bo-4ib4CZub-py3.10/lib/python3.10/site-packages/joblib/externals/loky/process_executor.py", line 426, in _process_worker
+    call_item = call_queue.get(block=True, timeout=timeout)
+  File "/Users/shyamsundar/miniconda3/lib/python3.10/multiprocessing/queues.py", line 108, in get
+    if not self._rlock.acquire(block, timeout):
+KeyboardInterrupt
+
+total comb of roots with assign and dim:  2
+below yml read mc_iters 4
+below yml read mc_iters 4
+total comb of roots with assign and dim:  2
+below yml read mc_iters 4
+total comb of roots with assign and dim:  2
+below yml read mc_iters 4
+below yml read mc_iters 4
+below yml read mc_iters 4
+below yml read mc_iters 4
+below yml read mc_iters 4

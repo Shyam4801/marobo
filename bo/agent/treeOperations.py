@@ -690,7 +690,7 @@ def splitsmpObs(region):  #, tf_dim, rng):
     region.smpXtr = filtered_points
     region.smpYtr = filtered_values
 
-    if len(filtered_points) == 0:
+    # if len(filtered_points) == 0:
         # print(' filtered pts in reg empty:',  region.input_space)
 
         # actregSamples = lhs_sampling(tf_dim*10 , region.input_space, tf_dim, rng)  #self.tf_dim*10

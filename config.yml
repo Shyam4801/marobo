@@ -1,17 +1,17 @@
 seed: 1
 sampling:
   initBudget: 60
-  maxbud: 62
-  mc_iters: 4
+  maxbud: 75
+  mc_iters: 10
   num_inactive: 100
 log:
   interval: 4
-testfunc: 'hartmann'
+testfunc: 'hartmann8m4h'
 configs:
-  perm: 2
-  smp: 1
-parallel: False
+  perm: 8
+  smp: 2
+parallel: True
 jobs: 60
 agents: 8
-horizon: 2
+horizon: 4
 
