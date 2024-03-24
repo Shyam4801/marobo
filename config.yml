@@ -10,7 +10,7 @@ testfunc: 'hartmann8m4h'
 configs:
   perm: 8
   smp: 2
-parallel: True
+parallel: False
 jobs: 60
 agents: 8
 horizon: 4

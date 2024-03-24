@@ -11,7 +11,7 @@ with open('config.yml', 'r') as file:
 
 class Node:
     def __init__(self, input_space, status) -> None:
-        self.input_space = np.asarray(input_space, dtype=np.float32)
+        self.input_space = np.asarray(input_space, dtype=np.float64)
         self.child = []
         self.mainStatus = status
         self.rolloutStatus = status

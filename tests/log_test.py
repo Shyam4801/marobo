@@ -544,36 +544,31 @@ class Test_internalBO(unittest.TestCase):
 
     def hartmann6d(self):
         def internal_function(x, from_agent = None):
-            x = x.reshape((1,6))
-            if x.shape[1] != 6:
+            # x = x.reshape((1,6))
+            if x.shape[0] != 6:
                 raise Exception('Dimension must be 6')
             d = 6
-            # if lb is None or ub is None:
-            #     lb = np.full((d,), 0)
-            #     ub = np.full((d,), 1)
-            # x = from_unit_box(x, lb, ub)
             alpha = np.array([1.0, 1.2, 3.0, 3.2])
-            A = np.array([[10.0, 3.0,  17.0, 3.5,  1.7,  8.0],
-                        [0.05, 10.0, 17.0, 0.1,  8.0,  14.0],
-                        [3.0,  3.5,  1.7,  10.0, 17.0, 8.0],
-                        [17.0, 8.0,  0.05, 10.0, 0.1,  14.0]])
-            P = 1e-4 * np.array([[1312.0, 1696.0, 5569.0, 124.0,  8283.0, 5886.0],
-                                [2329.0, 4135.0, 8307.0, 3736.0, 1004.0, 9991.0],
-                                [2348.0, 1451.0, 3522.0, 2883.0, 3047.0, 6650.0],
-                                [4047.0, 8828.0, 8732.0, 5743.0, 1091.0, 381.0]])
-            outer = 0
-            for ii in range(4):
-                inner = 0
-                for jj in range(6):
-                    xj = x[:, jj]
-                    Aij = A[ii, jj]
-                    Pij = P[ii, jj]
-                    inner += Aij * ((xj - Pij) ** 2)
-                outer += alpha[ii] * np.exp(-inner)
-            res = -outer
-            return res[0]
+            A = np.array([[10, 3, 17, 3.5, 1.7, 8],
+                        [0.05, 10, 17, 0.1, 8, 14],
+                        [3, 3.5, 1.7, 10, 17, 8],
+                        [17, 8, 0.05, 10, 0.1, 14]])
+
+            P = 10**-4 * np.array([[1312, 1696, 5569, 124, 8283, 5886],
+                                [2329, 4135, 8307, 3736, 1004, 9991],
+                                [2348, 1451, 3522, 2883, 3047, 6650],
+                                [4047, 8828, 8732, 5743, 1091, 381]])
+
+            outer_sum = 0
+            for i in range(4):
+                inner_sum = 0
+                for j in range(6):
+                    inner_sum += A[i, j] * (x[j] - P[i, j])**2
+                outer_sum -= alpha[i] * np.exp(-inner_sum)
+            
+            return outer_sum
         
-        range_array = np.array([[-5, 5]])  # Range [-4, 5] as a 1x2 array
+        range_array = np.array([[0, 1]])  # Range [-4, 5] as a 1x2 array
         region_support = np.tile(range_array, (6, 1))
         
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
@@ -589,9 +584,13 @@ class Test_internalBO(unittest.TestCase):
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
+        seed = task_id+configs['seed'] 
+
         init_samp = configs['sampling']['initBudget']
         maxbud = configs['sampling']['maxbud']
-        
+        name = Test_internalBO.hartmann6d.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
         opt = PerformBO(
             test_function=internal_function,
             init_budget=init_samp,
@@ -606,7 +605,8 @@ class Test_internalBO(unittest.TestCase):
 
         data, rg, plot_res = opt(bo, gpr_model)
 
-        name = Test_internalBO.hartmann6d.__name__
+        
+        
         minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
 
         init_vol = compute_volume(region_support)
