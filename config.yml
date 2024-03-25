@@ -1,17 +1,17 @@
 seed: 1
 sampling:
   initBudget: 60
-  maxbud: 75
-  mc_iters: 10
+  maxbud: 90
+  mc_iters: 4
   num_inactive: 100
 log:
   interval: 4
-testfunc: 'hartmann8m4h'
+testfunc: 'langermann2dcfg'
 configs:
-  perm: 8
+  perm: 6
   smp: 2
 parallel: False
 jobs: 60
-agents: 8
+agents: 4
 horizon: 4
 

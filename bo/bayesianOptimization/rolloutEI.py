@@ -702,8 +702,8 @@ class RolloutEI(InternalBO):
                         agent.updatesimModel()
                     except ValueError:
                         parentnode = find_parent(rl_root, agent.simReg)
-                        agent.simXtrain = deepcopy(parentnode.simXtrain)
-                        agent.simYtrain = deepcopy(parentnode.simYtrain)
+                        agent.simXtrain = deepcopy(parentnode.xtr)
+                        agent.simYtrain = deepcopy(parentnode.ytr)
                         agent.simModel = deepcopy(parentnode.model)
                     
                 
