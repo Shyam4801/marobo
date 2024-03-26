@@ -858,6 +858,73 @@ class Test_internalBO(unittest.TestCase):
         print('Bounds of final partition: ',rg)
         print('_______________________________')
         print(minobs)
+
+    
+    def langermann6d(self):
+        def internal_function(x, from_agent = None): # glob min at [6.99999997 8.99999999 3.99999999 1.99999998 7.99999998 0.99999997 5.99999998 2.99999999 4.99999998 1.99999997]
+                                                            #Function value at global minimum: -3.0000000000594165 | for 2D [2,1] f(x) = -3
+            m = 5  # number of terms in the summation
+            A = np.array([1, 2, 5, 2, 3])  # Coefficients for the terms
+            C = np.array([[3, 5, 2, 1, 7, 4],
+                        [5, 2, 1, 4, 3, 6],
+                        [2, 1, 3, 2, 5, 8],
+                        [1, 4, 2, 3, 4, 2],
+                        [7, 3, 5, 4, 6, 3]])  # Centers of the exponential terms
+            p = np.array([10, 20, 30, 40, 50])  # Exponent of the terms
+
+            result = 0
+            for i in range(m):
+                result += A[i] * np.exp(-np.sum((x - C[i])**2) / np.pi) * np.cos(np.pi * np.sum((x - C[i])**2) / p[i])
+
+            return -result
+        
+        range_array = np.array([[0, 10]])  
+        region_support = np.tile(range_array, (configs['dim'], 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
+        # glob_mins=[]
+        # seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+        name = Test_internalBO.langermann.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= configs['agents'],
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
         
 
 
