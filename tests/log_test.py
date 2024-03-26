@@ -187,7 +187,7 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (2, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (configs['dim'], 1))  # Replicate the range 10 times along axis 0
 
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
@@ -569,7 +569,7 @@ class Test_internalBO(unittest.TestCase):
             return outer_sum
         
         range_array = np.array([[0, 1]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (6, 1))
+        region_support = np.tile(range_array, (configs['dim'], 1))
         
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[0.114614,0.555649,0.852547,0.653893]])
@@ -688,7 +688,7 @@ class Test_internalBO(unittest.TestCase):
             return 1 + (1 / 4000) * sum_sq - prod_cos
 
         range_array = np.array([[-600, 600]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))
+        region_support = np.tile(range_array, (configs['dim'], 1))
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []
@@ -742,7 +742,7 @@ class Test_internalBO(unittest.TestCase):
             return (418.9829 * d) - (np.sum(x * np.sin(np.sqrt(np.abs(x)))))
 
         range_array = np.array([[-500, 500]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))
+        region_support = np.tile(range_array, (configs['dim'], 1))
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []
@@ -812,7 +812,7 @@ class Test_internalBO(unittest.TestCase):
             return sum1
         
         range_array = np.array([[0, 10]])  
-        region_support = np.tile(range_array, (10, 1))
+        region_support = np.tile(range_array, (configs['dim'], 1))
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []

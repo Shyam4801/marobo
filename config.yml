@@ -14,4 +14,4 @@ parallel: False
 jobs: 60
 agents: 4
 horizon: 4
-
+dim: 6
