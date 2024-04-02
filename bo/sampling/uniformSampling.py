@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 from ..utils.volume import compute_volume
-
+from ..sampling.lhsSampling import lhs_sampling
 def uniform_sampling(
     num_samples: int, region_support: npt.NDArray, tf_dim: int, rng
 ) -> np.array:
@@ -60,9 +60,9 @@ def sample_from_discontinuous_region(num_samples, regions, totalVolume, tf_dim, 
         # print('vol dict :',vol_dic_items, total_volume)
         for v in vol_dic_items:
             if int(num_samples*v[1]) >= threshold:
-                tsmp = uniform_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
+                tsmp = lhs_sampling(int(num_samples*v[1]), v[0].input_space, tf_dim, rng)
             else:
-                tsmp = uniform_sampling(threshold, v[0].input_space, tf_dim, rng)
+                tsmp = lhs_sampling(threshold, v[0].input_space, tf_dim, rng)
             
             filtered_samples = np.vstack((filtered_samples,tsmp))
 

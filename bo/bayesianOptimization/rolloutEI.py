@@ -38,6 +38,7 @@ import pickle
 import csv, random
 from ..utils.savestuff import *
 from ..agent.prior import Prior
+from ..utils.parallelPlot import plot_parallel_coord
 
 from dask.distributed import Client, LocalCluster
 import dask
@@ -365,8 +366,11 @@ class RolloutEI(InternalBO):
         # smpy = np.zeros((1,smplen))
         for i in range(iters):
             self.mc = i+1
+            
             # print('agents in mc iter : ', [i.region_support.input_space for i in agents])
-            # for ix, a in enumerate(agents):
+            for ix, a in enumerate(agents):
+                dims = [i for i in range(self.tf_dim)]
+                # plot_parallel_coord(a.region_support.smpXtr, dims, a.region_support.avgsmpYtr, 'mc_'+str(self.mc)+'_agent_'+str(a.id))
                 # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {self.mc}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                 # print('agent xtr ytr in start of MC of rollout  :',a.simReg.smpXtr, a.simReg.smpYtr)
                 # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
@@ -394,26 +398,41 @@ class RolloutEI(InternalBO):
                 # smpy = np.vstack((smpy, Ytr))
                 # smpy = smpy[1:]
                 commonX, commonY = intersect(sima.mcsmpXtr, Xtr, Ytr)
-                # print('commonX, commonY: ',commonX, commonY)
+                # print('commonX, commonY: ', commonY)
                 # print('Avg Samples b4 accumulating: ',sima.avgsmpXtr, sima.avgsmpYtr)
+                # tmp = deepcopy(sima.avgsmpYtr)
                 sima.avgsmpYtr = np.vstack((sima.avgsmpYtr, commonY))
+                # print('shape after ',sima.avgsmpYtr)
                 # sima.avgsmpYtr = sima.avgsmpYtr[1:]
+                
                 sima.avgsmpYtr = np.sum(sima.avgsmpYtr, axis=0)
                 sima.avgsmpXtr = commonX #Xtr
+
+                # try:
+                #     print('shape in try: ', sima.avgsmpYtr, tmp.shape, 'common y:', commonY)
+                #     assert np.array_equal(sima.avgsmpYtr-commonY, tmp.reshape(sima.avgsmpYtr.shape[0]))
+                # except AssertionError:
+                #     print('sima.avgsmpYtr,self.mc, sima.smpYtr: ',tmp, sima.input_space,commonX, commonY, sima.agent.id)
+                #     exit(1)
+
                 # print('Accumulated sum of Samples : ',sima.input_space,sima.avgsmpXtr, sima.avgsmpYtr)
                 sima.smpYtr = deepcopy(sima.mcsmpYtr)
                 sima.smpXtr = deepcopy(sima.mcsmpXtr)
+                
                 
                 # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/nodes/rl_root_{self.sample}_MCb4reset_{self.mc}.pkl')
                 # sima.avgRewardDist = np.asarray((sima.avgRewardDist))
                 # print('b4 sima avg reward Dist calc : ', sima.avgRewardDist, 'sima.rewardDist: ',sima.rewardDist)
                 # print('--------------------------------------')
                 sima.avgRewardDist = np.sum(sima.avgRewardDist, axis=0) #[sum(i) for i in zip(sima.avgRewardDist, sima.rewardDist)]
+                
                 # print(sima.avgRewardDist.shape, sima.avgRewardDist.reshape((1, self.num_agents)))
                 # sima.avgRewardDist = np.hstack((sima.avgRewardDist))
                 # sima.avgRewardDist.tolist()
                 # print('sima avg reward Dist : ', sima.avgRewardDist)
                 # print('--------------------------------------')
+                # if sima.getStatus(MAIN) == 1:
+                #     plot_parallel_coord(sima.smpXtr, dims, sima.avgsmpYtr, 'mc_'+str(self.mc)+'_agent_'+str(sima.agent.id))
                 sima.resetRewardDist(self.num_agents)
                 # sima.avgReward += sima.reward
                 sima.child = []
@@ -511,7 +530,7 @@ class RolloutEI(InternalBO):
             minytr = []
 
             for ia in agents:
-                if (ia.simYtrain).all() == None:
+                if (ia.simYtrain).all() == None or len(ia.simYtrain) == 0:
                     print('min(ia.simYtrain) < minytrval: ' , minytrval)
                 # if ia.simYtrain != []:
                 if min(ia.simYtrain) < minytrval:
@@ -595,7 +614,7 @@ class RolloutEI(InternalBO):
                         actY = []
                         for i in range(len(reg.smpXtr)):
                             f_xt = np.random.normal(mu[i],std[i],1)
-                            rw = (-1 * self.reward(f_xt,ytr))        # ?? ytr
+                            rw = (-1 * self.reward(f_xt,np.min(ia.simYtrain)))        # ?? ytr
                             actY.append(rw)
                         actY = np.hstack((actY))
                     
@@ -616,7 +635,7 @@ class RolloutEI(InternalBO):
                                 next_xt = reg.smpXtr[np.argmin(reg.smpYtr),:]
                         else:
                             if reward > np.min(actY):
-                                reward = np.min(actY)
+                                reward = np.min(actY)  # ?
 
 
                         reg.rewardDist[ix] += reward
@@ -704,7 +723,7 @@ class RolloutEI(InternalBO):
                         parentnode = find_parent(rl_root, agent.simReg)
                         agent.simXtrain = deepcopy(parentnode.xtr)
                         agent.simYtrain = deepcopy(parentnode.ytr)
-                        agent.simModel = deepcopy(parentnode.model)
+                        agent.simModel = deepcopy(parentnode.simModel)
                     
                 
                 # print('-'*100)

@@ -46,12 +46,18 @@ from itertools import permutations
 import random
 
 from ..utils.function import Fn
+from ..utils.parallelPlot import *
 
 from ..utils.cpr import cprofile
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
 
+def genPerm(num):
+    res = []
+    for i in range(num):
+        res.append(np.random.permutation(num))
+    return res
 
 def min_diagonal(matrix):
     # Number of 4x4 matrices in the nx4x4 matrix
@@ -216,7 +222,7 @@ class RolloutBO(BO_Interface):
 
         agentAftereachSample = []
         agentsWithminSmps = 0
-        # agdic = {0:0,1:0,2:0,3:0}
+        agdic = {key: 0 for key in range(num_agents)}
         # client = self.getWorkers()
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalYtrain))
@@ -321,6 +327,10 @@ class RolloutBO(BO_Interface):
             # print('agentsWithminSmps: ',[(i.id, i.region_support.input_space )for i in agentsWithminSmps], len(agentsWithminSmps))
             agentsWithminSmps = sorted(agentsWithminSmps, key=lambda x: x.id)
 
+            dims = [i for i in range(tf_dim+1)]
+            # print('a.region_support of min xroot',a.id, a.region_support)
+            # plot_agents_parallel_coord(agentsWithminSmps, dims, 'xtr'+f'{sample}_minConfig')
+
             # partition the actual obs 
             # agentsWithminSmps = splitObs(agentsWithminSmps, tf_dim, rng, ACTUAL, self.tf, self.behavior)
             #get the corresponding Xroot
@@ -375,19 +385,22 @@ class RolloutBO(BO_Interface):
                 # print('end of rollout avg smps check ', a.region_support.input_space ,a.region_support.smpXtr, a.region_support.smpYtr)
                 # print('end of rollout smps check ', a.region_support.avgsmpXtr, a.region_support.avgsmpYtr)
                 # smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
-                k = 10
-                idx = np.argpartition(a.region_support.smpYtr, k)[:k]  # Indices not sorted
+                try: 
+                    k = 10
+                    idx = np.argpartition(a.region_support.smpYtr, k)[:k]  # Indices not sorted
 
-                minK = idx[np.argsort(a.region_support.smpYtr[idx])]  # Indices sorted by value from smallest to largest
+                    minK = idx[np.argsort(a.region_support.smpYtr[idx])]  # Indices sorted by value from smallest to largest
 
-                smpxtr = a.region_support.smpXtr[minK] 
+                    smpxtr = a.region_support.smpXtr[minK] 
+                except ValueError:
+                    smpxtr = a.region_support.smpXtr[np.argmin(a.region_support.smpYtr),:] 
 
                 yofs = np.array([smpxtr[0]])
                 yofsmpxtr, _ = compute_robustness(yofs, test_function, behavior, agent_sample=True) #np.array([smpxtr])
                 
                 print('yofEI, miny from minK: ',x_opt, yofEI, smpxtr, yofsmpxtr, yofs)
-                if sample >= 2 : #yofEI > np.min(yofsmpxtr):
-                    x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
+                # if sample >= 1 : #yofEI > np.min(yofsmpxtr):  #sample >= 2 :
+                x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
                     # x_opt = smpxtr
                 # else:
                 #     agdic[i] +=  1
@@ -419,6 +432,10 @@ class RolloutBO(BO_Interface):
                 a.region_support.addFootprint(a.x_train, a.y_train, a.model)
                 # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
             
+            plot_agents_parallel_coord(agentsWithminSmps, dims, 'xtr'+f'{sample}_minConfig')
+            plot_all_parallel_coord(agentsWithminSmps, dims, 'xtrain_'+f'{sample}_minConfig')
+            plot_smp_parallel_coord(agentsWithminSmps, dims, 'xtr_'+f'{sample}_minConfig')
+
             print_tree(X_root, MAIN)
             if not os.path.exists('results/node'):
                 os.makedirs('results/node')
@@ -434,15 +451,13 @@ class RolloutBO(BO_Interface):
         # # print(plot_dict)
         # save_node(save_plot_dict, '/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/plot_dict.pkl')
         print()
-        # print('times when EI pt was chosen',agdic)
+        print('times when EI pt was chosen',agdic)
         print()
         return falsified, self.region_support , None #plot_dict
 
 
 
     def getRootConfigs(self, X_root, rootModel, sample, num_agents, tf_dim, agentsWithminSmps):
-        # Generate permutations of the numbers 0 to 3
-        permutations_list = list(permutations(range(num_agents)))
 
         roots = []
         for dim in range(tf_dim):
@@ -477,6 +492,7 @@ class RolloutBO(BO_Interface):
                     if a.region_support.getStatus(MAIN) == 0:
                         a.region_support.agentList = []
                     a.region_support.resetavgRewardDist(num_agents)
+                    # a.updateModel()
                     a.resetModel()
                     # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
                     # assert a.region_support.checkFootprint() == True
@@ -554,7 +570,7 @@ class RolloutBO(BO_Interface):
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
 
-        permutations_list = list(permutations(range(num_agents)))
+        permutations_list = genPerm(num_agents) #list(permutations(range(num_agents)))
         permToeval = configs['configs']['perm']        
         permidx = random.sample(range(0, len(permutations_list)), permToeval)
         permidx= np.repeat(permidx, configSamples)
@@ -563,7 +579,7 @@ class RolloutBO(BO_Interface):
 
         # Define a helper function to be executed in parallel
         def genSamples_in_parallel(perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-            return genSamplesForConfigs(self.ei_roll, perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+            return genSamplesForConfigs(self.ei_roll, perm, permutations_list, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
 
         # Execute the evaluation function in parallel for each Xs_root item
         results = Parallel(n_jobs=configs['jobs'])(delayed(genSamples_in_parallel)(permidx[csmp], num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(len(permidx))))

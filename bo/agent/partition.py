@@ -32,8 +32,8 @@ class Node:
         self.model = None
         self.rolloutPrior = None 
         self.mainPrior = None
-        self.smpXtr = None #deepcopy(self.mcsmpXtr)
-        self.smpYtr = None #deepcopy(self.mcsmpYtr)
+        self.smpXtr = np.empty((0, self.input_space.shape[1])) #deepcopy(self.mcsmpXtr)
+        self.smpYtr = np.empty((0)) #deepcopy(self.mcsmpYtr)
         self.avgsmpYtr = None
         self.avgsmpXtr = None
         self.mcsmpXtr = None

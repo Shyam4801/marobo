@@ -47,6 +47,22 @@ def get_subregion(root, num_agents, dic, dim):
         q.extend(ch)
     return q
 
+# def get_subregion(root, num_agents, dic, dim):
+#     q = [root]
+#     while len(q) < num_agents:
+#         cuts = dim % len(dic) 
+#         if len(q) % dic[cuts] == 0:
+#             dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
+#         curr = q.pop(0)
+        
+#         # print('dim :', dim,'q: ', [i.input_space for i in q])
+#         ch = split_region(curr, dim, dic[cuts])
+#         curr.add_child(ch)
+#         q.extend(ch)
+#         # if len(q) % dic[cuts] == 0:
+#         #     dim = (dim + 1) % len(root.input_space)
+#     return q
+
 def print_tree(node, routine, level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
     if routine == MAIN:
@@ -191,7 +207,7 @@ def accumulateSamples(node):
     dictionary = {} #{tuple(row): value for row, value in zip(array, values)}
     for row, value in zip(accumulated_reward, accy):
         if tuple(row) in dictionary:
-            dictionary[tuple(row)] = value
+            dictionary[tuple(row)] += value
         else:
             dictionary[tuple(row)] = value
             
@@ -797,7 +813,7 @@ def find_parent(root, target):
 
     return None
 
-def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+def genSamplesForConfigs(ei, perm, permutations_list, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         avgrewards = np.zeros((1,num_agents,num_agents))
         agentModels = []
         xroots = []
@@ -807,7 +823,7 @@ def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim
         # print()
         # print([obj.__dict__ for obj in roots])
         # print()
-        permutations_list = list(permutations(range(num_agents)))
+        # permutations_list = genPerm(num_agents*2) #list(permutations(range(num_agents)))
         
         for Xs_root in roots:
             # Xs_root = deepcopy(X_root) #Node(self.region_support, 1)
@@ -822,10 +838,12 @@ def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim
             agents = []
             # xtr, ytr = self.initAgents(model, region_support, init_sampling_type, tf_dim*5, tf_dim, rng, store=True)
             nid = 0
+            totalVolume = 0
             for id, l in enumerate(Xs_root.find_leaves()):
                 l.setRoutine(MAIN)
                 nid = nid % num_agents
                 if l.getStatus(MAIN) == 1:
+                    totalVolume += l.getVolume()
                     # if l.agent.model == None:
                     #     parent = find_parent(Xs_root, l)
                     #     model = parent.model
@@ -870,18 +888,19 @@ def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim
                     if min(ia.y_train) < minytrval:
                         minytrval = min(ia.y_train)
                         minytr = ia.y_train
-                        
-            
+
             agents = sorted(agents, key=lambda x: x.id)
             agents = splitObs(agents, tf_dim, rng, MAIN, tf, behavior)
             for a in agents:
                 # if sample == 0:
                 #     a.ActualXtrain == 
-                xtsize = int((tf_dim*3)) - len(a.x_train)
+                peragent = int((tf_dim*10)/(num_agents * 0.5))
+                xtsize = peragent - len(a.x_train)
+                # if a.region_support.getVolume() 
                 if len(a.x_train) == 0 :#xtsize > 0: 
                     # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
 
-                    x_train = lhs_sampling( xtsize, a.region_support.input_space, tf_dim, rng)
+                    x_train = lhs_sampling( 5, a.region_support.input_space, tf_dim, rng)
                     y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
                 
                     a.x_train = np.vstack((a.x_train, x_train))
@@ -896,19 +915,25 @@ def genSamplesForConfigs(ei, perm, num_agents, roots, init_sampling_type, tf_dim
                 assert check_points(a, ROLLOUT) == True
                 # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
-                
-                x_opt = ei._opt_acquisition(minytrval, a.model, a.region_support.input_space, rng)
+                xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
+
+                x_opt = ei._opt_acquisition(minytr, a.model, a.region_support.input_space, rng)
                 x_opt = np.asarray([x_opt])
                 mu, std = ei._surrogate(a.model, x_opt)
                 f_xt = np.random.normal(mu,std,1)
                 xtr = np.vstack((xtr , x_opt))
                 ytr = np.hstack((ytr, f_xt))
-                # print('ei pt to eval : ',x_opt, f_xt)
+                print('ei pt to eval : ',x_opt, f_xt)
 
-                a.region_support.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                # if np.size(a.region_support.smpXtr) == 0:
+                #     a.region_support.smpXtr = np.vstack((a.region_support.smpXtr, xtr))
+                #     a.region_support.smpYtr = np.hstack((a.region_support.smpYtr, ytr))
+                #     a.simReg.smpXtr = np.vstack((a.simReg.smpXtr, xtr))
+                #     a.simReg.smpYtr = np.hstack((a.simReg.smpYtr, ytr))
+                # else:
+                a.region_support.smpXtr = xtr
                 a.region_support.smpYtr = ytr
-                a.simReg.smpXtr = xtr #np.vstack((mainag.x_train, xtr))
+                a.simReg.smpXtr = xtr
                 a.simReg.smpYtr = ytr
                 assert a.region_support.check_points() == True
                 assert a.simReg.check_points() == True
