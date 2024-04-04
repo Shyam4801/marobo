@@ -591,7 +591,7 @@ class RolloutEI(InternalBO):
                             commonReg = find_common_parent(rl_root, reg, a.simReg)
                             # print('common parent : ', commonReg.input_space, a.simReg, reg )
                             # cmPrior = commonReg.rolloutPrior
-                            model = commonReg.model
+                            model = reg.model
                          #self.gprFromregionPairs(a, reg.agent)
                         if model == None:
                             print(' No common model b/w !', a.simReg.input_space, reg.input_space)
@@ -600,11 +600,11 @@ class RolloutEI(InternalBO):
                             exit(1)
 
                         # assert reg.model == reg.agent.simModel
-
-                        next_xt = self._opt_acquisition(ytr,model,reg.input_space,self.rng)  # reg.agent.model
+                        next_xt = self._opt_acquisition(ia.simYtrain,model,reg.input_space,self.rng)  # reg.agent.model
                         next_xt = np.asarray([next_xt])
                         test_next_xt = next_xt
                         # min_xt = next_xt
+                        ytr = a.simYtrain
                         mu, std = self._surrogate(model, next_xt)
                         f_xt = np.random.normal(mu,std,1)
                         # min_yxt = f_xt
@@ -614,7 +614,7 @@ class RolloutEI(InternalBO):
                         actY = []
                         for i in range(len(reg.smpXtr)):
                             f_xt = np.random.normal(mu[i],std[i],1)
-                            rw = (-1 * self.reward(f_xt,np.min(ia.simYtrain)))        # ?? ytr
+                            rw = (-1 * self.reward(f_xt,ytr))        # ?? ytr
                             actY.append(rw)
                         actY = np.hstack((actY))
                     
@@ -625,17 +625,17 @@ class RolloutEI(InternalBO):
                             # print(f">>>>>>>>>>>>>>>>>>>>>>>>>>> {h}  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                             # print('reg xtr ytr in rollout  :',reg.__dict__)
                             # print(">>>>>>>>>>>>>>>>>>>>>>>   >>>>>>>>>>>>>>>>>>>    >>>>>>>>>>>>>>>>>>>>>>")
-                            # reg.smpXtr = np.vstack((reg.smpXtr , next_xt))
-                            # reg.smpYtr = np.hstack((reg.smpYtr, reward))
+                            reg.smpXtr = np.vstack((reg.smpXtr , next_xt))
+                            reg.smpYtr = np.hstack((reg.smpYtr, reward))
                         
                         
                             # print('reg.smpYtr :',reg.input_space,reg.smpYtr)
                             if reward > np.min(reg.smpYtr):
                                 reward = np.min(reg.smpYtr)
                                 next_xt = reg.smpXtr[np.argmin(reg.smpYtr),:]
-                        else:
-                            if reward > np.min(actY):
-                                reward = np.min(actY)  # ?
+                        # else:
+                        #     if reward > np.min(actY):
+                        #         reward = np.min(actY)  # ?
 
 
                         reg.rewardDist[ix] += reward
@@ -678,8 +678,9 @@ class RolloutEI(InternalBO):
             # print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             jump = random.random()
             dim = np.random.randint(self.tf_dim)
+            sampled_subr = set()
             subregions = reassignUsingRewardDist(rl_root, ROLLOUT, agents, jump)
-            agents = partitionRegions(rl_root, subregions, ROLLOUT, dim)
+            agents, sampled_subr = partitionRegions(rl_root, subregions, ROLLOUT, sampled_subr)
             # print('after reassign rollout [i.simReg for i in agents]: ',[i.simReg.input_space for i in agents])
             # export_tree_image(rl_root, ROLLOUT, f"results/trees/rollout/rlroot_after_{h}_reassign.png")
             # exportTreeUsingPlotly(rl_root)

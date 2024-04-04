@@ -53,10 +53,10 @@ from ..utils.cpr import cprofile
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
 
-def genPerm(num):
+def genPerm(num, num_agents):
     res = []
     for i in range(num):
-        res.append(np.random.permutation(num))
+        res.append(np.random.permutation(num_agents))
     return res
 
 def min_diagonal(matrix):
@@ -242,7 +242,7 @@ class RolloutBO(BO_Interface):
             # agentModels = []
             # xroots = []
             
-            roots = self.getRootConfigs(X_root, model, sample, num_agents, tf_dim, agentsWithminSmps)
+            roots = self.getRootConfigs(configs['configs']['subr'], X_root,region_support, model, sample, num_agents, tf_dim, agentsWithminSmps)
             xroots, agentModels = self.genSamplesForConfigsinParallel(configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
@@ -399,8 +399,8 @@ class RolloutBO(BO_Interface):
                 yofsmpxtr, _ = compute_robustness(yofs, test_function, behavior, agent_sample=True) #np.array([smpxtr])
                 
                 print('yofEI, miny from minK: ',x_opt, yofEI, smpxtr, yofsmpxtr, yofs)
-                # if sample >= 1 : #yofEI > np.min(yofsmpxtr):  #sample >= 2 :
-                x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
+                if yofEI > np.min(yofsmpxtr): #sample >= 1 : #yofEI > np.min(yofsmpxtr):  #sample >= 2 :
+                    x_opt = smpxtr[np.argmin(yofsmpxtr),:] 
                     # x_opt = smpxtr
                 # else:
                 #     agdic[i] +=  1
@@ -457,16 +457,28 @@ class RolloutBO(BO_Interface):
 
 
 
-    def getRootConfigs(self, X_root, rootModel, sample, num_agents, tf_dim, agentsWithminSmps):
-
+    def getRootConfigs(self, configSamples, X_root, region_support, rootModel, sample, num_agents, tf_dim, agentsWithminSmps):
+        sampled_subr = set()
         roots = []
-        for dim in range(tf_dim):
+        for cfg in range(configSamples):
             if sample == 0: 
-                print(dim)
+                # print(dim)
                 root = deepcopy(X_root)
-                factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
-                print(factorized)
-                agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
+                # root.getVperdim()
+                # factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
+                # print(factorized)
+                # agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
+
+                all_sub_regions = partition_space(region_support, num_agents)
+                print('all_sub_regions: ',len(all_sub_regions))
+                unsampled_sub_regions = [sub_region for sub_region in all_sub_regions if tuple(tuple(x) for x in sub_region) not in sampled_subr]
+        
+                agents_to_subregion = getSubregions(unsampled_sub_regions, num_agents)
+
+                for sub_region in agents_to_subregion:
+                    sampled_subr.add(tuple(tuple(x) for x in sub_region.input_space))
+
+                # print('subr s :',[i.input_space for i in agents_to_subregion])
                 root.add_child(agents_to_subregion)
                 for id, l in enumerate(root.find_leaves()):
                     l.setRoutine(MAIN)
@@ -484,7 +496,7 @@ class RolloutBO(BO_Interface):
                         agents.append(l.agent)
                     # print(f'agent x_train b4 partitioning  ', l.agent.x_train, l.agent.y_train, l.agent.id, l.input_space)
                 subregions = reassignUsingRewardDist( root, MAIN, agents, jump_prob=jump)
-                agents = partitionRegions(root, subregions, MAIN, dim)
+                agents, sampled_subr = partitionRegions(root, subregions, MAIN, sampled_subr)
                 print('after moving and partitioning ')
                 print_tree(root, MAIN)
                 for a in agents:
@@ -570,8 +582,9 @@ class RolloutBO(BO_Interface):
     def genSamplesForConfigsinParallel(self, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
         self.ei_roll = RolloutEI()
 
-        permutations_list = genPerm(num_agents) #list(permutations(range(num_agents)))
-        permToeval = configs['configs']['perm']        
+        permToeval = configs['configs']['perm'] 
+        permutations_list = genPerm(permToeval, num_agents) #list(permutations(range(num_agents)))
+               
         permidx = random.sample(range(0, len(permutations_list)), permToeval)
         permidx= np.repeat(permidx, configSamples)
         # permutations_list = permutations_list[:permToeval]

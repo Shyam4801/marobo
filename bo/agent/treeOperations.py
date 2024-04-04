@@ -15,6 +15,51 @@ import random
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
 
+def partition_space(bounds, num_partitions):
+    """
+    Partition a 10-dimensional space into a specified number of sub-regions and
+    return a random subset of m sub-regions.
+
+    Args:
+        bounds (np.array): A 2x10 array representing the lower and upper bounds
+            of the 10-dimensional space.
+        num_partitions (int): The number of sub-regions to partition the space into.
+        m (int, optional): The number of sub-regions to return. If None, returns all sub-regions.
+
+    Returns:
+        list: A list of sub-regions, where each sub-region is represented as a list
+            containing the lower and upper bounds for that sub-region.
+    """
+    bounds = bounds.T
+    # Extract lower and upper bounds from the input array
+    lower_bounds = bounds[0]
+    upper_bounds = bounds[1]
+
+    # Calculate the range for each dimension
+    ranges = upper_bounds - lower_bounds
+
+    # Divide each dimension into equal-sized intervals
+    intervals = [np.linspace(lower, upper, num_partitions + 1) for lower, upper in zip(lower_bounds, upper_bounds)]
+
+    # Generate all sub-regions as lists of lower and upper bounds
+    all_sub_regions = []
+    for indices in np.ndindex(tuple(len(interval) - 1 for interval in intervals)):
+        lower_bounds = [interval[i] for i, interval in zip(indices, intervals)]
+        upper_bounds = [interval[i + 1] for i, interval in zip(indices, intervals)]
+        all_sub_regions.append([list(lower_bounds), list(upper_bounds)])
+
+    return all_sub_regions
+
+def getSubregions(all_sub_regions, m):
+    transposedSubr = []
+    # If m is provided, randomly select m sub-regions
+    sub_regions = random.sample(all_sub_regions, m)
+    for s in sub_regions:
+        transposedSubr.append(np.array(s).T)
+    sub_regions = [Node(i, 1) for i in transposedSubr]
+
+    return sub_regions
+
 
 def split_region(root,dim,num_agents):
     # print('split_region: dim',dim, num_agents)
@@ -30,17 +75,21 @@ def split_region(root,dim,num_agents):
         regs.append(org)
 
     regs = [Node(i, 1) for i in regs]
+    _ = [i.getVperdim() for i in regs]
     return regs
     
 def get_subregion(root, num_agents, dic, dim):
     dic = sorted(dic, reverse=True)
     q = [root]
+    i = 0
     while len(q) < num_agents:
         for c in range(len(dic)):
                 if num_agents - len(q) >= dic[c]-1:
                     cuts = c
                     break
-        dim =  np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
+        # dim =  root.dimchosen[i] 
+        # i = (i+1) % len(root.input_space) #
+        dim = np.random.randint(len(root.input_space)) #(dim + 1) % len(root.input_space) #
         curr = q.pop(0)
         ch = split_region(curr, dim, dic[cuts])
         curr.add_child(ch)
@@ -505,15 +554,23 @@ def reassignUsingRewardDist(root, routine, agents, jump_prob):
         # a.updateBounds(subregs[minsubregIdx[idx]], routine)
         # a(routine)
 
-def partitionRegions(root, subregions, routine, dim):
+def partitionRegions(root, subregions, routine, sampled_subr):
     # print('===================================================')
     # print('================= Paritioning =================')
     for subr in subregions:
         if subr.getnumAgents(routine) > 1:
             subr.updateStatus(0, routine)
-            internal_factorized = find_prime_factors(subr.getnumAgents(routine))
-            ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
+            # internal_factorized = find_prime_factors(subr.getnumAgents(routine))
+            # ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
+
+            all_sub_regions = partition_space(subr.input_space, subr.getnumAgents(routine))
+            unsampled_sub_regions = [sub_region for sub_region in all_sub_regions if tuple(tuple(x) for x in sub_region) not in sampled_subr]
+    
+            ch = getSubregions(unsampled_sub_regions, subr.getnumAgents(routine))
+            
             subr.add_child(ch)
+            for sub_region in ch:
+                    sampled_subr.add(tuple(tuple(x) for x in sub_region.input_space))
             # print('len(ch),subr.getnumAgents(routine) : ',internal_factorized,len(ch),subr.getnumAgents(routine), subr.input_space)
             assert len(ch) == subr.getnumAgents(routine)
 
@@ -573,7 +630,7 @@ def partitionRegions(root, subregions, routine, dim):
             # print('new subr : ', newsub.input_space, 'agent : ', newsub.agent.id)
 
     newAgents = sorted(newAgents, key=lambda x: x.id)
-    return newAgents
+    return newAgents, sampled_subr
 
 
 
@@ -915,7 +972,7 @@ def genSamplesForConfigs(ei, perm, permutations_list, num_agents, roots, init_sa
                 assert check_points(a, ROLLOUT) == True
                 # print(f'agent xtr config sample', Xs_root, a.x_train, a.y_train, a.id, a.region_support.input_space)
 
-                xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*20, tf_dim, tf, behavior, rng, store=True)
+                xtr, ytr = initAgents(a.model, a.region_support.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
 
                 x_opt = ei._opt_acquisition(minytr, a.model, a.region_support.input_space, rng)
                 x_opt = np.asarray([x_opt])

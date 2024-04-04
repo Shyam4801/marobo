@@ -249,34 +249,34 @@ class Test_internalBO(unittest.TestCase):
 
     def ackley(self):
         def internal_function(x, lb=None, ub=None, from_agent = None): #ackley
+            a = 20
+            b = 0.2
+            c = 2 * np.pi
             n = len(x)
-            sum_sq_term = -0.2 * np.sqrt((1/n) * np.sum(x**2)/n)
-            cos_term = np.sum(np.cos(2 * np.pi * x))/n
-            return -20 * np.exp(sum_sq_term) - np.exp(cos_term) + 20 + np.exp(1)
+            sum_sq_term = -a * np.exp(-b * np.sqrt(np.sum(x**2) / n))
+            cos_term = -np.exp(np.sum(np.cos(c * x) / n))
+            return a + np.exp(1) + sum_sq_term + cos_term
         
-        range_array = np.array([[-4, 5]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (100, 1))
+        range_array = np.array([[-32.768, 32.768]])  
+        region_support = np.tile(range_array, (configs['dim'], 1))
 
-        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
-        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 12))
+        glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []
-
-        # print('region_support: ',region_support)
-        # region_support = np.array([[-5, 5], [-5, 5]]) 
-
-        seeds = []
-        
-        sd = int(time.time())
-        # seeds.append(sd)
-        seed = task_id #12345
+        # glob_mins=[]
+        seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
 
         gpr_model = InternalGPR()
         bo = RolloutBO()
 
-        init_samp = 5
-        maxbud = 10
+        seed = task_id+configs['seed'] 
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
         name = Test_internalBO.ackley.__name__
-        logMeta(name+"_"+str(task_id), init_samp, maxbud)
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
 
         opt = PerformBO(
             test_function=internal_function,
@@ -284,18 +284,18 @@ class Test_internalBO(unittest.TestCase):
             max_budget=maxbud,
             region_support=region_support,
             seed=seed,
-            num_agents= 4,
+            num_agents= configs['agents'],
             behavior=Behavior.MINIMIZATION,
             init_sampling_type="lhs_sampling",
             logger = self.logger
         )
 
         data, rg, plot_res = opt(bo, gpr_model)
-        minobs, timestmp = logdf(data,init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
         
-        print('seeds :',seeds)
-        sdf = pd.DataFrame(seeds)
-        sdf.to_csv(timestmp+'/sdf.csv')
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
         init_vol = compute_volume(region_support)
         final_vol = compute_volume(rg)
         reduction = ((init_vol - final_vol)/init_vol)* 100
@@ -304,14 +304,7 @@ class Test_internalBO(unittest.TestCase):
         print('_______________________________')
         print('Bounds of final partition: ',rg)
         print('_______________________________')
-        print()
-        print('Plotting')
-        
-        # minobs = data.history[np.argmin(data.history[:,2]), :]
-        # print(np.array(data.history, dtype=object).shape)
-        # contour(plot_res['agents'], plot_res['assignments'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
-        assert np.array(data.history, dtype=object).shape[1] == 3
+        print(minobs)
         
     def mod_branin(self):
         def internal_function(X, from_agent = None): #Branin with unique glob min -  9.42, 2.475 local min (3.14, 12.27) and (3.14, 2.275)
@@ -621,6 +614,83 @@ class Test_internalBO(unittest.TestCase):
 
         # contour(plot_res['agents'], plot_res['assignments'], plot_res['status'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
         
+
+
+    def hartmann4d(self):
+        def internal_function(x, from_agent = None):
+            # Coefficients
+            alpha = np.array([1.0, 1.2, 3.0, 3.2])
+            A = np.array([[10, 3, 17, 3.5, 1.7, 8],
+                        [0.05, 10, 17, 0.1, 8, 14],
+                        [3, 3.5, 1.7, 10, 17, 8],
+                        [17, 8, 0.05, 10, 0.1, 14]])
+
+            P = 10**-4 * np.array([[1312, 1696, 5569, 124, 8283, 5886],
+                                [2329, 4135, 8307, 3736, 1004, 9991],
+                                [2348, 1451, 3522, 2883, 3047, 6650],
+                                [4047, 8828, 8732, 5743, 1091, 381]])
+
+            outer_sum = 0
+            for i in range(4):
+                inner_sum = 0
+                for j in range(4):
+                    inner_sum += A[i, j] * (x[j] - P[i, j])**2
+                outer_sum -= alpha[i] * np.exp(-inner_sum)
+            
+            return outer_sum
+
+
+        range_array = np.array([[0, 1]])  # Range [-4, 5] as a 1x2 array
+        region_support = np.tile(range_array, (configs['dim'], 1))
+        
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        glob_mins = np.array([0.2, 0.15, 0.47, 0.27])
+        y_of_mins = []
+        # glob_mins=[]
+        # seed = 12345
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        seed = task_id+configs['seed'] 
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+        name = Test_internalBO.hartmann4d.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= configs['agents'],
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
+
 
     def sixhump(self):
         def internal_function(x, lb=None, ub=None, from_agent = None):

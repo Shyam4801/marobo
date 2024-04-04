@@ -3,7 +3,7 @@ import numpy as np
 import random
 from .constants import *
 from copy import deepcopy
-from bo.utils.volume import compute_volume
+from bo.utils.volume import compute_volume, compute_volume_per_dim
 import yaml
 
 with open('config.yml', 'r') as file:
@@ -38,7 +38,7 @@ class Node:
         self.avgsmpXtr = None
         self.mcsmpXtr = None
         self.mcsmpYtr = None
-        self.chkobjcopy = {}
+        self.dimchosen = []
 
     def __call__(self):
         if self.agent != None:
@@ -81,7 +81,6 @@ class Node:
         self.xtr = deepcopy(xtr)
         self.ytr = deepcopy(ytr)
         self.model = deepcopy(model)
-        self.chkobjcopy[model] = self.model
 
     def updatesmpObs(self, parent):
          self.smpXtr = deepcopy(parent.smpXtr)
@@ -121,6 +120,9 @@ class Node:
     def getVolume(self):
         vol = compute_volume(self.input_space)
         return vol
+    
+    def getVperdim(self):
+        self.dimchosen = compute_volume_per_dim(self.input_space)
 
     def setRoutine(self, name):
         self.routine = name
