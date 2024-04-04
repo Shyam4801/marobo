@@ -563,7 +563,7 @@ def partitionRegions(root, subregions, routine, sampled_subr):
             # internal_factorized = find_prime_factors(subr.getnumAgents(routine))
             # ch = get_subregion(deepcopy(subr), subr.getnumAgents(routine) , internal_factorized, dim)
 
-            all_sub_regions = partition_space(subr.input_space, subr.getnumAgents(routine))
+            all_sub_regions = partition_space(subr.input_space, configs['configs']['cuts'] )
             unsampled_sub_regions = [sub_region for sub_region in all_sub_regions if tuple(tuple(x) for x in sub_region) not in sampled_subr]
     
             ch = getSubregions(unsampled_sub_regions, subr.getnumAgents(routine))
@@ -994,7 +994,7 @@ def genSamplesForConfigs(ei, perm, permutations_list, num_agents, roots, init_sa
                 a.simReg.smpYtr = ytr
                 assert a.region_support.check_points() == True
                 assert a.simReg.check_points() == True
-            
+                # print('xtr, ytr ',xtr, ytr)
 
             # print(f'_________________  ____________________')
             # model = GPR(gpr_model)

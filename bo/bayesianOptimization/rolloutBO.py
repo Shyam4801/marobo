@@ -469,8 +469,8 @@ class RolloutBO(BO_Interface):
                 # print(factorized)
                 # agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
 
-                all_sub_regions = partition_space(region_support, num_agents)
-                print('all_sub_regions: ',len(all_sub_regions))
+                all_sub_regions = partition_space(region_support, configs['configs']['cuts'] )
+                # print('all_sub_regions: ',len(all_sub_regions))
                 unsampled_sub_regions = [sub_region for sub_region in all_sub_regions if tuple(tuple(x) for x in sub_region) not in sampled_subr]
         
                 agents_to_subregion = getSubregions(unsampled_sub_regions, num_agents)
