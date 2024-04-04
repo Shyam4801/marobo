@@ -1066,6 +1066,73 @@ class Test_internalBO(unittest.TestCase):
 
 
 
+    def langermann4d(self):
+        def internal_function(x, from_agent = None):
+            m = 5  # Number of local minima
+            c = [1, 2, 5, 2, 3]  # Constant coefficients
+            A = np.array([[3, 5, 2, 1],
+                        [5, 2, 1, 4],
+                        [2, 3, 2, 3],
+                        [1, 2, 2, 5],
+                        [7, 1, 6, 2]])  # Constants
+
+            d = len(x)
+            result = 0
+            for i in range(m):
+                inner_sum = 0
+                for j in range(d):
+                    inner_sum += (x[j] - A[i, j])**2
+                result += c[i] * np.exp(-1/np.pi * np.sum(inner_sum)) * np.cos(np.pi * np.sum(inner_sum))
+            return result
+
+        range_array = np.array([[0, 10]])  
+        region_support = np.tile(range_array, (4, 1))
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
+        # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
+        y_of_mins = []
+        # glob_mins=[]
+        # seed = task_id #123
+        sd = task_id
+        # region_support = np.array([[-1, 1],[-2, 2]])
+
+        seed = task_id+configs['seed'] #12345
+
+        gpr_model = InternalGPR()
+        bo = RolloutBO()
+
+        init_samp = configs['sampling']['initBudget']
+        maxbud = configs['sampling']['maxbud']
+        name = Test_internalBO.langermann4d.__name__
+        logMeta(name+"_"+str(task_id), init_samp, maxbud, str(task_id))
+
+        opt = PerformBO(
+            test_function=internal_function,
+            init_budget=init_samp,
+            max_budget=maxbud,
+            region_support=region_support,
+            seed=seed,
+            num_agents= configs['agents'],
+            behavior=Behavior.MINIMIZATION,
+            init_sampling_type="lhs_sampling",
+            logger = self.logger
+        )
+
+        data, rg, plot_res = opt(bo, gpr_model)
+
+        
+        
+        minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
+
+        init_vol = compute_volume(region_support)
+        final_vol = compute_volume(rg)
+        reduction = ((init_vol - final_vol)/init_vol)* 100
+        print('_______________________________')
+        print('reduced ', reduction)
+        print('_______________________________')
+        print('Bounds of final partition: ',rg)
+        print('_______________________________')
+        print(minobs)
+
     def shubert(self):
         def internal_function(x, from_agent = None):
             result = 1
@@ -1078,7 +1145,7 @@ class Test_internalBO(unittest.TestCase):
             return result
         
         range_array = np.array([[-10, 10]])  
-        region_support = np.tile(range_array, (2, 1))
+        region_support = np.tile(range_array, (configs['dim'], 1))
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         # glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
         y_of_mins = []

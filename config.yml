@@ -1,14 +1,14 @@
 seed: 1
 sampling:
   initBudget: 60
-  maxbud: 65
-  mc_iters: 4
+  maxbud: 62
+  mc_iters: 2
   num_inactive: 100
 log:
   interval: 4
-testfunc: 'hmmajor'
+testfunc: 'lg4d'
 configs:
-  subr: 150
+  subr: 50
   cuts: 4
   perm: 1
   smp: 1
@@ -16,5 +16,5 @@ parallel: False
 jobs: 30
 agents: 8
 horizon: 4
-dim: 6
-globmin: [0.20168952, 0.15001069, 0.47687398, 0.27533243, 0.31165162, 0.65730054, -3.32237]
+dim: 4
+globmin: [0.20168952, 0.15001069, 0.47687398, 0.27533243, -3.32237]
