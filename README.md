@@ -3,8 +3,8 @@ Solving black-box global optimization problems efficiently across domains remain
 
 ## Illustration
 <p float="left">
-  <img src="resources/S2.gif" width="250" />
-  <img src="resources/SS.gif" width="250" />
+  <img src="resources/S2.gif" width="500" />
+  <img src="resources/SS.gif" width="500" />
 </p>
 
 
