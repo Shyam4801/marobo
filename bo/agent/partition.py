@@ -31,7 +31,7 @@ class Node:
 
         self.input_space = np.asarray(input_space, dtype=np.float32)
         self.status = status
-        self.agentId = None
+        self.agentId = np.float32('inf')
         # self.gp = None
         self.obsIndices = []
         self.smpIndices = []

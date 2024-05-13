@@ -40,7 +40,7 @@ from ..utils.savestuff import *
 
 from dask.distributed import Client, LocalCluster
 import dask
-from bo.agent.treeOperations import saveRegionState, restoreRegionState
+# from ..agent.treeOperations import saveRegionState, restoreRegionState
 
 
 def unwrap_self(arg, **kwarg):
@@ -334,19 +334,22 @@ class RolloutEI(InternalBO):
         # save_node(self.root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+f'/nodes/rl_root_{self.sample}_MCafter_{self.mc}.pkl')
         return self.root
            
-
-    def lookahead(self, root, globalGP, horizon, rng):
+    # Rollout from the current state of the agents
+    def rollout(self, m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng):
+        self.num_agents = num_agents
+        self.tf = tf
+        self.tf_dim = tf_dim
+        self.behavior = behavior
         reward = 0
+        actm = m 
         h = horizon
         self.tf_dim = len(root.input_space)
-        rl_root = root #copy.deepcopy(self.root)
-         #self.subregions
-        reward = []
-
+        rl_root = root 
+        ytr = np.min(tmpGP.dataset.y_train)
+        
+        # Simulate the state of the agents by keeping a copy of the locations sampled
         tmpGP = deepcopy(globalGP)
-
-        print('tmp gp data b4 loop ', tmpGP.dataset)
-        # exit(1)
+        # Rollout the agent movements for 'h' horizons
         while(True):
             totalVolume = 0
             xt = rl_root.find_leaves() 
@@ -360,145 +363,76 @@ class RolloutEI(InternalBO):
                     agents.append(r)
             
             agents = sorted(agents, key=lambda x: x.agentId)
-            print('agents: ',agents)
 
-            minytrval = float('inf')
-            minytr = []
-            # for ix, a in enumerate(agents):
-            #     for ia in agents:
-            #         try:
-            #             minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
-            #         except IndexError:
-            #             print('-'*20)
-            #             print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
-            #             print('-'*20)
-            #             # exit(1)
-            #             continue
-            #         # if min(ia.gp.dataset.y_train) < minytrval:
-            #             # minytrval = min(ia.y_train)
-            #         minytr = min(minytrval, tmpGP.dataset.y_train[minidx])
-            # ytr = minytr
-            ytr = np.min(tmpGP.dataset.y_train)
-            
-            for ix, a in enumerate(agents):
-                model = a.model
-                if model == None:
-                    print(' No model !')
-                    print('h: ', h)
+            cfgroots = [rl_root]
+            # Perform rollout one agent at a time
+            for m in range(actm, self.num_agents):
+                # Get the config with the min approx Q factor
+                f_ro, rl_root = self.forward(m, tmpGP, xt, cfgroots, h, totalVolume, rng)
+                # print('m seq of minz :', m, f_ro, 'actm : ',actm)
+                # print('% tree ')
+                # print_tree(rl_root)
+                # print('-'*20)
+                if m == self.num_agents - 1:
+                    break
 
-                    exit(1)
+                # Get the different possible splits for the chosen config rl_root
+                roots = getRootConfigs(m, rl_root, tmpGP, 1, self.num_agents, self.tf_dim)
+                # Create different possbile agent assignments and next set of samples to evaluate
+                xroots, agentModels, tmpGP = genSamplesForConfigsinParallel(m, tmpGP, configs['configs']['smp'], self.num_agents, roots, "lhs_sampling", self.tf_dim, self.tf, self.behavior, rng)
+                cfgroots  = np.hstack((xroots))
+                agentModels  = np.hstack((agentModels))
 
-                for reg in xt:
-                    
-                    if reg.status == RegionState.ACTIVE.value:
-                        if a != reg:
-                            commonReg = find_common_parent(rl_root, reg, a)
-                            # print('common parent : ', commonReg.input_space, a.simReg, reg )
-                            # cmPrior = commonReg.rolloutPrior
-                            model = commonReg.model
-                            #self.gprFromregionPairs(a, reg.agent)
-                        if model == None:
-                            print(' No common model b/w !', a.simReg.input_space, reg.input_space)
-                            print('h: ', h)
-                            # save_node(rl_root, f'/Users/shyamsundar/ASU/sem2/RA/partmahpc/partma/results/'+configs['testfunc']+'/node_with_no_common_model.pkl')
+                # Check if the observations and samples for each configuration are not empty
+                # Build the local GPs for the respective configs based on locations sampled during simulation
+                for crt in cfgroots:
+                    for id, l in enumerate(crt.find_leaves()): 
+                        localGP = Prior(tmpGP.dataset, l.input_space)
+                        try:
+                            assert localGP.checkPoints(tmpGP.dataset.x_train[l.obsIndices]) == True
+                        except AssertionError:
+                            print(l.__dict__)
                             exit(1)
 
-                        # assert reg.model == reg.agent.simModel
 
-                        next_xt = self._opt_acquisition(ytr,model,reg.input_space,rng)  # reg.agent.model
-                        next_xt = np.asarray([next_xt])
-                        test_next_xt = next_xt
-                        # min_xt = next_xt
-                        mu, std = self._surrogate(model, next_xt)
-                        f_xt = np.random.normal(mu,std,1)
-                        # min_yxt = f_xt
-                        reward = (-1 * self.reward(f_xt,ytr)) #float('inf')
-                        
-                        xtr = reg.samples.x_train[reg.smpIndices]
-                        mu, std = self._surrogate(model, xtr)  #agent.simModel
-                        actY = []
-                        for i in range(len(xtr)):
-                            f_xt = np.random.normal(mu[i],std[i],1)
-                            rw = (-1 * self.reward(f_xt,ytr))        # ?? ytr
-                            if a == reg:
-                                reg.yOfsmpIndices[reg.smpIndices[i]] = rw
-                            actY.append(rw)
-                        actY = np.hstack((actY))
-                    
-                        # if a == reg:
-                        #     # print('reg.yOfsmpIndices.values: ',reg.yOfsmpIndices.values)
-                        #     reward = min(reward, list(reg.yOfsmpIndices.values()))
+                    for a in crt.find_leaves():    
+                        if a.getStatus() == RegionState.ACTIVE.value:
+                            if len(a.obsIndices) == 0:
+                                parent = find_parent(crt, a)
+                                a.model = deepcopy(parent.model)
+                                
+                                actregSamples = lhs_sampling(self.tf_dim*2 , a.input_space, self.tf_dim, rng)  #self.tf_dim*10
+                                mu, std = self._surrogate(a.model, actregSamples)  #agent.simModel
+                                actY = []
+                                for i in range(len(actregSamples)):
+                                    f_xt = np.random.normal(mu[i],std[i],1)
+                                    actY.append(f_xt)
+                                actY = np.hstack((actY))
+                                
+                                tmpGP.dataset = tmpGP.dataset.appendSamples(actregSamples, actY)
+                            # else:
+                            localGP = Prior(tmpGP.dataset, a.input_space)
+                            a.model , a.obsIndices = localGP.buildModel() #updateObs()
                             
-                        # else:
-                        reward = min(reward, np.min(actY))
-                            # if reward > np.min(actY):
-                            #     reward = np.min(actY)
 
+                            xtsize = ((self.tf_dim*10)/4) - len(a.smpIndices)
+                            if len(a.smpIndices) ==0 : #xtsize > 0: 
 
-                        reg.rewardDist[ix] += reward
-                    
-                    else:
-                        smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
-                        mu, std = self._surrogate(reg.model, smp)
-                        reward = float('inf')
-                        for i in range(len(smp)):
-                            f_xt = np.random.normal(mu[i],std[i],1)
-                            smp_reward = self.reward(f_xt,ytr)
-                            if reward > -1*smp_reward:
-                                reward = ((-1 * smp_reward))
-                                # reg.addSample(smp[i])
-                        # reg.rewardDist.append(reg.reward)
-                        reg.rewardDist[ix] += (reward)
+                                x_train = lhs_sampling( 2, a.input_space, self.tf_dim, rng)
+                                mu, std = self._surrogate(a.model, x_train)  #agent.simModel
+                                actY = []
+                                for i in range(len(x_train)):
+                                    f_xt = np.random.normal(mu[i],std[i],1)
+                                    rw = (-1 * self.reward(f_xt,ytr))  
+                                    actY.append(rw)
+                                actY = np.hstack((actY))
 
-            # print()
-            agents = sorted(agents, key=lambda x: x.agentId)
-            print('agents after sorting :', agents)
-            jump = random.random()
-            dim = np.random.randint(self.tf_dim)
-            subregions = reassignUsingRewardDist(rl_root, RegionState, agents, jump)
-            rl_root = partitionRegions(rl_root, tmpGP, subregions, RegionState, dim)
-
-
-            for a in rl_root.find_leaves():    
-                if a.getStatus() == RegionState.ACTIVE.value:
-                    if len(a.obsIndices) == 0:
-                        parent = find_parent(rl_root, a)
-                        a.model = deepcopy(parent.model)
-                        
-                        actregSamples = lhs_sampling(self.tf_dim*2 , a.input_space, self.tf_dim, rng)  #self.tf_dim*10
-                        mu, std = self._surrogate(a.model, actregSamples)  #agent.simModel
-                        actY = []
-                        for i in range(len(actregSamples)):
-                            f_xt = np.random.normal(mu[i],std[i],1)
-                            actY.append(f_xt)
-                        actY = np.hstack((actY))
-                        
-                        tmpGP.dataset = tmpGP.dataset.appendSamples(actregSamples, actY)
-                    # else:
-                    localGP = Prior(tmpGP.dataset, a.input_space)
-                    a.model , a.obsIndices = localGP.buildModel() #updateObs()
-                    
-
-                    xtsize = ((self.tf_dim*10)/4) - len(a.smpIndices)
-                    if len(a.smpIndices) ==0 : #xtsize > 0: 
-                        # print('reg and filtered pts len in Actual:',  a.region_support.input_space, a.id)
-
-                        x_train = lhs_sampling( 2, a.input_space, self.tf_dim, rng)
-                        mu, std = self._surrogate(a.model, x_train)  #agent.simModel
-                        actY = []
-                        for i in range(len(x_train)):
-                            f_xt = np.random.normal(mu[i],std[i],1)
-                            rw = (-1 * self.reward(f_xt,ytr))  
-                            actY.append(rw)
-                        actY = np.hstack((actY))
-
-                        a.samples.appendSamples(x_train, actY)
-                        a.updatesmpObs()
-                
+                                a.samples.appendSamples(x_train, actY)
+                                a.updatesmpObs()
+            
+            print(f'* end of {m} minz'*10)
             print('tmp gp end of horizon shape ',tmpGP.dataset.x_train.shape)
 
-            # xt = rl_root.find_leaves() 
-            # exit(1)
             print()
             print(f'- end of {h}'*20)
             print_tree(rl_root)
@@ -506,20 +440,129 @@ class RolloutEI(InternalBO):
             h -= 1
             if h <= 0 :
                 break
-        return rl_root
+                # exit(1)
+        return rl_root, f_ro
                 
+    # Function to get the config with min approx Q factor across the active regions
+    def forward(self, m, tmpGP, xt, roots, h, totalVolume, rng):
+        f_ro = np.float64('inf')
+        f_g = None
+        for rl_root in roots:
+            
+            f_cfg, mincfg = self.get_min_cfg(m, tmpGP, xt, rl_root, h, totalVolume, rng)
+            if f_ro > f_cfg:
+                f_ro = f_cfg
+                f_g = mincfg
 
-        # exit(0)
+        return f_ro, f_g
+    
+    # Function to evaluate the samples for each config  
+    def get_min_cfg(self, m, tmpGP, xt, rl_root, h, totalVolume, rng):
 
+        agents = []
+        for r in xt:
+            if r.getStatus() == RegionState.ACTIVE.value:
+                agents.append(r)
+        
+        agents = sorted(agents, key=lambda x: x.agentId)
+
+        # Get the f* among all the active regions 
+        ytr = self.get_min_across_regions(agents, tmpGP) 
+        print('min across reg : ', ytr)
+
+        for ix, a in enumerate(agents[m:]):
+            ix = a.agentId
+            # Local GP of agent 
+            model = a.model
+            if model == None:
+                print(' No model !')
+                print('h: ', h)
+
+                exit(1)
+
+            for reg in xt:
+                # evaluate the samples in the active region
+                if reg.status == RegionState.ACTIVE.value:
+                    # An extension to use the common parent GP instead of local GP
+                    if a != reg:
+                        commonReg = find_common_parent(rl_root, reg, a)
+                        model = commonReg.model
+
+                    if model == None:
+                        print(' No common model b/w !', a.simReg.input_space, reg.input_space)
+                        print('h: ', h)
+                        exit(1)
+
+                    # Calculate the cost using EI
+                    xtr = reg.samples.x_train[reg.smpIndices]
+                    smpEIs = (-1 * self.cost(xtr, ytr, model, "multiple"))
+                    maxEI = np.array([xtr[np.argmin(smpEIs), :]])
+                    # Add the location with min cost to the local GPs
+                    if a == reg:
+                        mu, std = self._surrogate(model, maxEI)
+                        f_xt = np.random.normal(mu,std,1)
+                        tmpGP.dataset.appendSamples(maxEI, f_xt)
+                    
+                    print('reg cost : ', a.agentId, np.min(smpEIs))
+                    reg.rewardDist[ix] = np.min(smpEIs)
+                    # exit(1)
+                
+                else:
+                    # Evaluate the inactive regions by uniformly sampling 
+                    smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                    mu, std = self._surrogate(reg.model, smp)
+                    reward = float('inf')
+                    for i in range(len(smp)):
+                        f_xt = np.random.normal(mu[i],std[i],1)
+                        smp_reward = self.reward(f_xt,ytr)
+                        if reward > -1*smp_reward:
+                            reward = ((-1 * smp_reward))
+                    reg.rewardDist[ix] = (reward)
+
+            
+            agents = sorted(agents, key=lambda x: x.agentId)
+            print('agents after sorting :', agents)
+
+            # Get the minimum encountered so far from the active regions based on predicted values
+            f_ro = self.get_min_across_regions(agents, tmpGP)
+            return f_ro, rl_root
+
+    # Function to get the minimum across the set of active regions
+    def get_min_across_regions(self, agents, tmpGP):
+        minytrval = float('inf')
+        minytr = []
+        for ix, a in enumerate(agents):
+            for ia in agents:
+                try:
+                    minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
+                except IndexError:
+                    # print('-'*20)
+                    print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
+                    # print('-'*20)
+                    # exit(1)
+                    continue
+                if minytrval > tmpGP.dataset.y_train[minidx]:
+                    minytrval = tmpGP.dataset.y_train[minidx]
+                    minytr = tmpGP.dataset.y_train[minidx] #min(minytrval, tmpGP.dataset.y_train[minidx])
+        ytr = minytr
+
+        return ytr
+        
+    # Reward calulation for inactive regions
     # Reward is the difference between the observed min and the obs from the posterior
     def reward(self,f_xt,ytr):
         ymin = np.min(ytr)
         r = max(ymin - f_xt, 0)
         # print(' each regret : ', r)
         return r
+    
+    # Cost function for active regions which is our base policy heuristic (EI)
+    def cost(self,xt,ytr, model, sample_type='single'):
+        r = self._acquisition(ytr, xt, model,sample_type)
+        return r
 
-
-def simulate(root, globalGP, mc_iters, num_agents, horizon, rng):
+# Function to rollout N^(RO) times 
+def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, horizon, rng):
     total_time = 0
     roll = RolloutEI()
     root = saveRegionState(root)  # Save the original state of the tree
@@ -527,44 +570,41 @@ def simulate(root, globalGP, mc_iters, num_agents, horizon, rng):
     print_tree(root)
     print('^'*50)
     lvs = root.find_leaves()
-    # for sima in lvs:
-    #         sima = saveRegionState(sima)
-    #         # print(sima.__dict__)
-    #         print('sima.children: b4 mc iters ', sima.saved_state['children'])
 
-    # exit(1)
-    # b4root = root
-    for m in tqdm(range(mc_iters)):
-        print(f'= MC {m}'*50)
-        
+    f_nc = 0
+    for r in tqdm(range(mc_iters)):
+        print(f'= MC {r}'*50)
         start_time = time.time()  # Start time
-        # print('b4 roll : ', id(root), root)
-        root = roll.lookahead(root, globalGP, horizon, rng)  # Execute the operation and build the tree
+
+        # Rollout the current configuration
+        root, f_ro = roll.rollout(m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng)  # Execute the operation and build the tree
+        # Sum up the min ecountered over N^(RO) times 
+        f_nc += f_ro
         for sima in lvs:
-            
+            # Accumulate the improvements across regions to make the actual jumps
             accumulate_rewardDist(sima, num_agents)
             sima.rewardDist = np.asarray(sima.rewardDist, dtype="object").reshape((1, num_agents))
             sima.avgRewardDist = np.vstack((sima.avgRewardDist, sima.rewardDist))
-
-            accumulate_all_keys(sima)
-
-            # sima.children = []
-            # print('sima.children: after reset s',sima, sima.children, sima.input_space, sima.__dict__['saved_state'])
             
 
         end_time = time.time()  # End time
-        total_time += end_time - start_time  # Accumulate computation time
-        # print('a4 roll : ', id(root), root)
-        # assert b4root == root
-        root = restoreRegionState(root, ['avgRewardDist','yOfsmpIndices'])  # Restore state except 'avgRewardDist'
-        # assert b4root == root
-        # print('a4 restore roll : ', id(root), root)
-        print('^ after restore'*50)
-        print(lvs[0].__dict__)
+        total_time += end_time - start_time  
+        # Restore region state
+        root = restoreRegionState(root, ['avgRewardDist','yOfsmpIndices'])  
+        root = saveRegionState(root)
+
+        print('^ after restore'*10)
         print_tree(root)
-        # print_tree(b4root)
-        print('^'*50)
+        # exit(1)
     print('total time ', total_time)
     # exit(1)
-    return root
+
+    # Compute the average improvements across regions over N^(RO) times 
+    for lf in lvs:
+            lf.avgRewardDist = lf.avgRewardDist / mc_iters
+            lf.rewardDist = lf.avgRewardDist
+    
+    # Average the min ecountered over N^(RO) times 
+    F_nc = f_nc/mc_iters
+    return root, F_nc
 

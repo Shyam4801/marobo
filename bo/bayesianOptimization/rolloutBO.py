@@ -43,7 +43,7 @@ import dask, time, json
 
 from .routine import Routine
 from .mainRoutine import MainRoutine
-from .rolloutRoutine import RolloutRoutine
+# from .rolloutRoutine import RolloutRoutine
 
 
 
@@ -136,29 +136,23 @@ class RolloutBO(BO_Interface):
 
         agentsWithminSmps = 0
         agdic = {0:0,1:0,2:0,3:0}
-        # client = self.getWorkers()
+        m = -1
+        # Sample points using the multi agent routine 
         for sample in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalObs.y_train))
-            # for sample in tqdm(range(num_samples)):
             print('_____________________________________', sample)
-            # print(f"INPUT SPACE : {GREEN}{self.region_support}{END}")
             print('_____________________________________')
             print('global dataset : ', globalObs.x_train.shape, globalObs.y_train.shape)
             print('_____________________________________')
-            # model = GPR(gpr_model)
-            # model.fit(globalObs.x_train, globalObs.y_train)
+            # Build the model over the entire region
             globalGP = Prior(globalObs, region_support)
             print(globalGP)
-            # X_root.gp = globalGP
             model , indices = globalGP.buildModel()
             X_root.updateModel(indices, model)
             
-            
-            # agentModels = []
-            # xroots = []
-            
-            roots = self.getRootConfigs(X_root, globalGP, sample, num_agents, tf_dim, agentsWithminSmps)
-            xroots, agentModels, globalGP = self.genSamplesForConfigsinParallel(globalGP, configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            # Get the initial set of configs by partitioning among m agents
+            roots = getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim)
+            xroots, agentModels, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
 
@@ -175,14 +169,40 @@ class RolloutBO(BO_Interface):
                         print(l.__dict__)
                         exit(1)
             
-            rollout  = RolloutRoutine()
-            Xs_roots = rollout.run(xroots, globalGP, num_agents, region_support, rng)
-
+            # Calling the main routine to get the configuration as a result of multi agent rollout
             main = MainRoutine()
-            X_root , _ = main.run(Xs_roots, globalGP, num_agents, tf_dim, test_function, behavior, rng, agdic)
+            X_root = main.sample(xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
             print('roll bo :',X_root)
-            
-            # print_tree(X_root, RegionState.ACTIVE)
+
+            ei_roll = RolloutEI()
+            agents = []
+            for id, l in enumerate(X_root.find_leaves()):    
+                if l.getStatus() == RegionState.ACTIVE.value:
+                    agents.append(l)
+
+            agents = sorted(agents, key=lambda x: x.agentId)
+            # Sample new set of agent locations from the winning configuration
+            for l in agents: 
+                minidx = globalGP.dataset._getMinIdx(l.obsIndices)
+                fmin = globalGP.dataset.y_train[minidx]
+
+                x_opt = ei_roll._opt_acquisition(fmin, l.model, l.input_space, rng)
+                yofEI, _ = compute_robustness(np.array([x_opt]), test_function, behavior, agent_sample=False)
+
+                print('%'*100)
+                print('pred x, pred y: ', fmin, l.agentId, x_opt, yofEI)
+                print('%'*100)
+                globalGP.dataset = globalGP.dataset.appendSamples(x_opt, yofEI)
+                
+                # Update the respective local GPs
+                localGP = Prior(globalGP.dataset, l.input_space)
+                model , indices = localGP.buildModel()
+                l.updateModel(indices, model)
+
+            # exit(1)
+            print_tree(X_root) #, RegionState.ACTIVE)
+            if sample == 1:
+                exit(1)
 
         print()
         print('times when EI pt was chosen',agdic)
@@ -191,82 +211,5 @@ class RolloutBO(BO_Interface):
 
 
 
-    def getRootConfigs(self, X_root, globalGP, sample, num_agents, tf_dim, agentsWithminSmps):
-        # Generate permutations of the numbers 0 to 3
-        permutations_list = list(permutations(range(num_agents)))
-
-        roots = []
-        for dim in range(tf_dim):
-            if sample == 0: 
-                print(dim)
-                root = deepcopy(X_root)
-                factorized = find_prime_factors(num_agents) #sorted(find_close_factor_pairs(num_agents), reverse=True)
-                print('num_agents, factorized: ',num_agents, factorized)
-                agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
-                root.add_child(agents_to_subregion)
-                for id, l in enumerate(root.find_leaves()):
-                    # print('indside getRootConfigs', 'status:', root.__dict__)
-                    if l.getStatus() == RegionState.ACTIVE.value:
-                        
-                        localGP = Prior(globalGP.dataset, l.input_space)
-                        # l.samples = root.samples
-                        
-                        l.model , l.obsIndices = localGP.buildModel()
-
-                        
-                roots.append(root)
-                
-            else:
-                jump = random.random()
-                root = deepcopy(X_root)
-                agents =[]
-                for id, l in enumerate(root.find_leaves()):
-                    if l.getStatus() == RegionState.ACTIVE.value:
-                        l.rewardDist = l.avgRewardDist.reshape((num_agents))
-                        agents.append(l)
-
-                    print(f'agent x_train b4 partitioning  ', globalGP.dataset.x_train[l.obsIndices], globalGP.dataset.y_train[l.obsIndices], l.agentIdx, l.input_space)
-                subregions = reassignUsingRewardDist( root, RegionState, agents, jump_prob=jump)
-                root = partitionRegions(root, globalGP, subregions, RegionState, dim)
-                print('after moving and partitioning ')
-                # print_tree(root, RegionState.ACTIVE)
-                for a in agents:
-                    # a.resetRegions()
-                    if a.getStatus() == 0:
-                        a.agentList = []
-                    a.resetavgRewardDist(num_agents)
-                    # a.resetModel()
-                    # a.region_support.addFootprint(a.ActualXtrain, a.ActualYtrain, a.model)
-                    # assert a.region_support.checkFootprint() == True
-                
-                
-                roots.append(root)
-            
-        # testv=0
-        # for i in agents_to_subregion:
-        #     testv += i.getVolume()
-
-        # assert X_root.getVolume() == testv
-        print('roots after dim: ', roots)
-        for i in roots:
-            print_tree(i)
-
-        return roots
     
-    # @profile
-    def genSamplesForConfigsinParallel(self, globalGP, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-        self.ei_roll = RolloutEI()
-
-        # Define a helper function to be executed in parallel
-        def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-            return genSamplesForConfigs(self.ei_roll, globalGP, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
-
-        # Execute the evaluation function in parallel for each Xs_root item
-        results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
-        
-        roots = [results[i][0] for i in range(configSamples)]
-        agents = [results[i][1] for i in range(configSamples)]
-        globalGP = results[0][2]
-
-        return roots , agents, globalGP
     

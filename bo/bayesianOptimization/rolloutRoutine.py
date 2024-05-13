@@ -10,7 +10,7 @@ import time
 
 from .rolloutEI import RolloutEI, simulate
 from ..agent.partition import Node
-from ..agent.treeOperations import * 
+# from ..agent.treeOperations import * 
 
 # from ..agent.agent import Agent
 # from ..agent.constants import *
@@ -38,25 +38,20 @@ class RolloutRoutine:
         pass
 
 
-    def run(self, xroots, globalGP, num_agents, region_support, rng):
-        # Xs_roots = self.evalConfigsinParallel(roots) #, sample, Xs_root, agents, num_agents, globalXtrain, globalYtrain, region_support, model, rng)
+    def run(self, m, xroots, globalGP, num_agents, tf, tf_dim, behavior, rng):
         print('xroots and agents b4 joblib : ', len(xroots))
-        # Xs_roots = self.evalConfigs(xroots, num_agents, region_support, rng)
 
         mc = configs['sampling']['mc_iters']
         if configs['parallel']:
-            # mp.set_start_method("spawn", force=True)
-            # with mp.Pool(processes=1) as pool:
-            #     print('pooling ')
-            #     results = pool.map(partial(simulate, globalGP=globalGP, mc_iters=mc, num_agents=num_agents, horizon=4, rng=rng), xroots)
-
-            results = Parallel(n_jobs=-1)(delayed(simulate)(Xs_root_item, globalGP=globalGP, mc_iters=mct, num_agents=num_agents, horizon=4, rng=rng) for mct in range(1,mc) for (Xs_root_item) in tqdm(xroots) )
+            results = Parallel(n_jobs=-1)(delayed(simulate)(m, Xs_root_item, globalGP=globalGP, mc_iters=mct, num_agents=num_agents, horizon=4, rng=rng) for mct in range(1,mc) for (Xs_root_item) in tqdm(xroots) )
         
         else:
             results=[]
+            F_nc = []
             for xr in xroots:
-                res = simulate(xr, globalGP=globalGP, mc_iters=2, num_agents=num_agents, horizon=4, rng=rng)
+                res, f_nc = simulate(m, xr, globalGP=globalGP, mc_iters=2, num_agents=num_agents, tf=tf, tf_dim=tf_dim, behavior=behavior, horizon=4, rng=rng)
                 results.append(res)
+                F_nc.append(f_nc)
         
 
         Xs_roots = results
@@ -64,7 +59,7 @@ class RolloutRoutine:
 
         print('Xs_roots: ', Xs_roots)
 
-        return Xs_roots
+        return Xs_roots, F_nc
     
     def evalConfigs(self, Xs_root, num_agents, region_support, rng):
         self.ei_roll = RolloutEI()
