@@ -18,3 +18,6 @@ class RegionState(Enum):
     INACTIVE = 0
     # MAIN = MainState
     # ROLLOUT = RolloutState
+
+class State(Enum):
+    ACTUAL = 1

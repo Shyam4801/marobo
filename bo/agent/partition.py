@@ -44,6 +44,7 @@ class Node:
         self.avgRewardDist = np.zeros((1,4))
         self.agentList = []
         self.saved_state = None
+        self.state = None
 
     # def __repr__(self):
     #     return f"TreeNode(parent={self.parent})"
@@ -83,9 +84,11 @@ class Node:
     def resetRewardDist(self, numAgents):
         self.rewardDist = np.zeros((numAgents))
     
-    def resetavgRewardDist(self, numAgents):
-        self.rewardDist = np.zeros((numAgents))
-        self.avgRewardDist = np.zeros((1,numAgents))
+    def resetavgRewardDist(self, m):
+        self.rewardDist[m:] = 0
+        self.avgRewardDist[m:] = 0
+        # self.rewardDist = np.zeros((numAgents))
+        # self.avgRewardDist = np.zeros((1,numAgents))
 
     def getVolume(self):
         vol = compute_volume(self.input_space)

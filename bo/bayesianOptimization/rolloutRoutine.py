@@ -39,6 +39,20 @@ class RolloutRoutine:
 
 
     def run(self, m, xroots, globalGP, num_agents, tf, tf_dim, behavior, rng):
+        """
+        Parallelize configuration rollout
+
+        Args: 
+            m: ith agent to rollout fixing (1 to i-1) agent configurations
+            xroots: Configurations to rollout
+            num_agents: Number of agents
+            test_function_dimension: The dimensionality of the region. (Dimensionality of the test function)
+
+        Return:
+            Xs_roots: Simulated Agent Configuration 
+            F_nc: Approximate Q-factor
+
+        """
         print('xroots and agents b4 joblib : ', len(xroots))
 
         mc = configs['sampling']['mc_iters']

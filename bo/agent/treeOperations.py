@@ -63,12 +63,12 @@ def get_subregion(root, num_agents, dic, dim):
         #     dim = (dim + 1) % len(root.input_space)
     return q
 
-def print_tree(node, level=0, prefix=''):
+def print_tree(node, routine = "ROLLOUT", level=0, prefix=''):
     # print('node.getStatus(routine) :',node.getStatus(routine))
-    # if routine == MAIN:
-    #     reward = node.avgRewardDist
-    # else:
-    reward = node.rewardDist
+    if routine == "MAIN":
+        reward = node.avgRewardDist
+    else:
+        reward = node.rewardDist
     if node.getStatus() == 1:
         color = GREEN
     else:
@@ -80,7 +80,7 @@ def print_tree(node, level=0, prefix=''):
         id = node.agentId
 
     for i, child in enumerate(node.children):
-        print_tree(child, level + 1, '|   ' + prefix if i < len(node.children) - 1 else '    ' + prefix)
+        print_tree(child, routine, level + 1, '|   ' + prefix if i < len(node.children) - 1 else '    ' + prefix)
     
     print('    ' * level + prefix + f'-- {color}{node.input_space.flatten()}{reward}{id}{END}')
 
@@ -153,7 +153,6 @@ def accumulate_rewardDist(node, numAgents):
         
         accumulated_reward = np.vstack((accumulated_reward, child_accumulated_reward))
         accumulated_reward = np.sum(accumulated_reward, axis=0) #[sum(i) for i in zip(accumulated_reward, child_accumulated_reward)]
-        # print('accumulated_reward after sum ',accumulated_reward)
         # print('--------------------------------------')
 
     # Update the node.value with the accumulated reward
@@ -299,6 +298,7 @@ def find_common_parent(root, node1, node2):
 
 
 def reassignUsingRewardDist(root, routine, agents, agentID, jump_prob):
+    agents = sorted(agents, key=lambda x: x.agentId)
     subregs = root.find_leaves() 
     rewardStack = []
     subregs = sorted(subregs, key=lambda x: (x.getStatus() == RegionState.INACTIVE.value, x.agentId if x.getStatus() == RegionState.ACTIVE.value else float('inf')))
@@ -311,7 +311,7 @@ def reassignUsingRewardDist(root, routine, agents, agentID, jump_prob):
     lower_triangular_mask = np.tril(np.ones(minsubreg.shape, dtype=bool))
     # Apply mask to the matrix
     lower_triangular_matrix = np.where(lower_triangular_mask, minsubreg, np.inf)
-    
+    # print('lower_triangular_matrix: ',lower_triangular_matrix)
     minsubregIdxAmongAll = np.argmin(lower_triangular_matrix ,axis=0)
     minsubregIdx = minsubregIdxAmongAll
 
@@ -543,18 +543,18 @@ def genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_
                 
                 agents = sorted(agents, key=lambda x: x.agentId)
                 for a in agents:
-                    xtsize = int((tf_dim*2)/num_agents) - len(a.obsIndices)
-                    # If the observation to build a model is empty, then sample points to build local GP
-                    if len(a.obsIndices) == 0: #xtsize > 0: 
+                    # xtsize = int((tf_dim*2)/num_agents) - len(a.obsIndices)
+                    # # If the observation to build a model is empty, then sample points to build local GP
+                    # if len(a.obsIndices) == 0: #xtsize > 0: 
 
-                        x_train = lhs_sampling( xtsize, a.input_space, tf_dim, rng)
-                        y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+                    #     x_train = lhs_sampling( xtsize, a.input_space, tf_dim, rng)
+                    #     y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
 
-                        globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
-                    # Build the respective local GPs 
-                    localGP = Prior(globalGP.dataset, a.input_space)
-                    model, indices = localGP.buildModel()
-                    a.updateModel(indices, model)
+                    #     globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
+                    # # Build the respective local GPs 
+                    # localGP = Prior(globalGP.dataset, a.input_space)
+                    # model, indices = localGP.buildModel()
+                    # a.updateModel(indices, model)
                     # Sample points to evaluate using Rollout
                     xtr, ytr = initAgents(a.model, a.input_space, init_sampling_type, tf_dim*10, tf_dim, tf, behavior, rng, store=True)
                     a.samples.appendSamples(xtr, ytr) 
@@ -591,6 +591,19 @@ def delete_tree(node):
         delete_tree(child)
     del node
 
+# Function to save the state of the tree nodes
+def getActualState(node, found_nodes=None):
+    if found_nodes is None:
+        found_nodes = []
+    
+    if node.state == State.ACTUAL:
+        found_nodes.append(node)
+    
+    for child in node.children:
+        if child is not None:
+            getActualState(child, found_nodes)
+    
+    return found_nodes
 
 # Function to save the state of the tree nodes
 def saveRegionState(node):
@@ -625,7 +638,7 @@ def restoreRegionState(node, keeplist):
     return node
 
 # Function to consider different possible splits of a region
-def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim):
+def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim, tf, behavior, rng):
 
         roots = []
         for dim in range(tf_dim):
@@ -637,6 +650,7 @@ def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim):
                 agents_to_subregion = get_subregion(deepcopy(root), num_agents, factorized, dim)
                 root.add_child(agents_to_subregion)
                 for id, l in enumerate(root.find_leaves()):
+                    l.state = State.ACTUAL
                     if l.getStatus() == RegionState.ACTIVE.value:
                         # l.agentID = id
                         localGP = Prior(globalGP.dataset, l.input_space)
@@ -654,6 +668,7 @@ def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim):
                 agents =[]
                 for id, l in enumerate(root.find_leaves()):
                     if l.getStatus() == RegionState.ACTIVE.value:
+                        # print('b4 obs idx: ', l.obsIndices)
                         # l.rewardDist = l.avgRewardDist.reshape((num_agents)) #?
                         agents.append(l)
                 
@@ -661,14 +676,36 @@ def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim):
                 subregions = reassignUsingRewardDist(root, RegionState, agents, m, jump_prob=jump)
                 root = partitionRegions(root, globalGP, subregions, RegionState, dim)
                 print('after moving and partitioning ')
+                # print('treee inside root config ')
                 # print_tree(root)
                 
                 # Check inactive regions  
-                for a in agents:
+                for id, l in enumerate(root.find_leaves()):
+                    if l.getStatus() == RegionState.ACTIVE.value:
+                        l.updateObs(globalGP)
+                        print('after move obs idx: ', l.input_space, l.obsIndices)
+
+                        xtsize = int((tf_dim*2)/num_agents) - len(l.obsIndices)
+                        # If the observation to build a model is empty, then sample points to build local GP
+                        if len(l.obsIndices) == 0: #xtsize > 0: 
+
+                            x_train = lhs_sampling( xtsize, l.input_space, tf_dim, rng)
+                            y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+
+                            globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
+                        # Build the respective local GPs 
+                        localGP = Prior(globalGP.dataset, l.input_space)
+                        model, indices = localGP.buildModel()
+                        l.updateModel(indices, model)
+                        
+                        localGP = Prior(globalGP.dataset, l.input_space)
+                        model, indices = localGP.buildModel()
+                        l.updateModel(indices, model)
+                        
                     # a.resetRegions()
-                    if a.getStatus() == RegionState.INACTIVE.value:
-                        a.agentList = []
-                    a.resetavgRewardDist(num_agents) #?
+                    if l.getStatus() == RegionState.INACTIVE.value:
+                        l.agentList = []
+                    # a.resetavgRewardDist(m) #?
                         
                 roots.append(root)
             
