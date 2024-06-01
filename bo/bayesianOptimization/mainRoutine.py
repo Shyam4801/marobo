@@ -43,17 +43,14 @@ class MainRoutine:
             # Rollout the configurations and get the config with min f_ro
             minXroot = self.run(m, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
             print(f'end of MAIN minz {m}')
-
-            if m == num_agents-1:
-                break
             
-            # Get the next location from agent m and its true function value
-            roots = getRootConfigs(m, minXroot, globalGP, 1, num_agents, tf_dim, test_function, behavior, rng)
+            # Get the next location from agent m and its true function value for different possible cuts
+            roots = getRootConfigs(m, minXroot, globalGP, 1, num_agents, tf_dim, test_function, behavior, rng, routine='MAIN')
 
             
             for i in roots:
-                print('in main routine')
-                print_tree(i, 'MAIN')
+                # print('in main routine')
+                # print_tree(i, 'MAIN')
                 for id, l in enumerate(i.find_leaves()):
                     ytr = globalGP.dataset.y_train[l.obsIndices]    
                     if l.getStatus() == RegionState.ACTIVE.value and l.agentId == m:
@@ -79,8 +76,12 @@ class MainRoutine:
                         # X_root.gp = globalGP
                         model , indices = localGP.buildModel()
                         l.updateModel(indices, model)
-            # if m == 0:
-            #     exit(1)
+            # if m == 2:
+            # print_tree(minXroot, 'MAIN')
+            # print('-'*20)
+            # print_tree(roots[0])
+                # print_tree(minXroot)
+                # exit(1)
             
             # Fix the configuration for agents 1 to (i-1) using rollout policy and get configs for agents i to m
             xroots, agentModels, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, "lhs_sampling", tf_dim, test_function, behavior, rng)
@@ -89,11 +90,12 @@ class MainRoutine:
 
             print('xroots : ', xroots)
             for i in xroots:
-                print(f'tree after {m} minz')
-                print_tree(i)
+                # print(f'tree after {m} minz')
+                # print_tree(i)
                 # print(globalGP)
+                numag = 0
                 for id, l in enumerate(i.find_leaves()): 
-                    print('l.avgRewardDist: ', l.avgRewardDist, l.input_space)
+                    # print('l.avgRewardDist: ', l.avgRewardDist, l.input_space)
                     localGP = Prior(globalGP.dataset, l.input_space)
                     # print(l.__dict__)
                     try:
@@ -101,8 +103,20 @@ class MainRoutine:
                     except AssertionError:
                         print(l.__dict__)
                         exit(1)
+                    if l.getStatus() == RegionState.ACTIVE.value:
+                        numag += 1
+                assert numag == num_agents
 
-        return minXroot
+
+        fincfgIdx = np.random.randint(len(roots))
+        # print('m b4 reass part minXroot : ', m)
+        # print_tree(minXroot, 'MAIN')
+        # print()
+        # print_tree(roots[fincfgIdx])
+        # exit(1)
+        # reassignAndPartition(m, minXroot, globalGP, num_agents, dim, tf_dim, test_function, behavior, rng)
+        
+        return roots[fincfgIdx] , globalGP#, smpGP
 
     # Responsible for rolling out the configurations and get the config with min f_ro
     def run(self, 
@@ -132,8 +146,9 @@ class MainRoutine:
         
         rollout  = RolloutRoutine()
         Xs_roots, F_nc = rollout.run(m, Xs_roots, globalGP, num_agents, test_function, tf_dim, behavior, rng)
+        F_nc = np.hstack((F_nc))
         print('Fnc : ',F_nc)
         minXroot = Xs_roots[np.argmin(F_nc)]
         
-        return minXroot
+        return minXroot #, smpGP
     

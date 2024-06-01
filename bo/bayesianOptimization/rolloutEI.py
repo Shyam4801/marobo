@@ -49,118 +49,10 @@ def unwrap_self(arg, **kwarg):
 
 with open('config.yml', 'r') as file:
     configs = yaml.safe_load(file)
-
-def intersect(x,y, x_values):
-    x_tuples = [tuple(row) for row in x]
-    y_tuples = [tuple(row) for row in y]
-
-    # Find the intersection between the arrays while preserving order
-    intersection_tuples = [row for row in x_tuples if row in y_tuples]
-
-    # Convert back to numpy arrays
-    intersection = np.array(intersection_tuples)
-
-    # Find the corresponding 1D array values
-    # x_values = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    # y_values = np.array([11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
-
-    x_values_intersection = []
-    y_values_intersection = []
-    for row in intersection_tuples:
-        index_x = x_tuples.index(row)
-        index_y = y_tuples.index(row)
-        x_values_intersection.append(x_values[index_x])
-        # y_values_intersection.append(y_values[index_y])
-
-    return intersection, np.asarray(x_values_intersection)
   
 class RolloutEI(InternalBO):
     def __init__(self) -> None:
         pass
-
-    # @logtime(LOGPATH)
-    # def sample(
-    #     self,
-    #     root,
-    #     agents,
-    #     num_agents,
-    #     horizon: int,
-    #     region_support: NDArray,
-    #     rng
-    # ) -> Tuple[NDArray]:
-
-    #     """Rollout with EI
-
-    #     Args:
-    #         test_function: Function of System Under Test.
-    #         horizon: Number of steps to look ahead
-    #         y_train: Evaluated values of samples from Training set.
-    #         region_support: Min and Max of all dimensions
-    #         gpr_model: Gaussian Process Regressor Model developed using Factory
-    #         rng: RNG object from numpy
-
-    #     Raises:
-    #         TypeError: If y_train is not (n,) numpy array
-
-    #     Returns:
-    #         next x values that have minimum h step reward 
-    #     """
-    #     self.mc_iters = configs['sampling']['mc_iters']
-    #     print('below yml read mc_iters',self.mc_iters)
-    #     self.root = root
-    #     self.numthreads = int(mp.cpu_count()/2)
-    #     self.horizon = horizon
-    #     self.region_support = region_support
-    #     self.rng = rng
-    #     self.tf_dim = region_support.shape[0]
-    #     self.num_agents = num_agents
-
-    #     lf = self.root.find_leaves()
-
-    #     agents = []
-        
-    #     # assert len(a.region_support.agentList) == 1
-    #     for i,lv in enumerate(lf):
-    #         lv.resetavgRewardDist(num_agents)
-    #         # lv.resetSmps()
-    #         lv.avgsmpYtr = np.zeros((1,len(lv.smpYtr)))
-    #         lv.smpYtr = np.zeros((len(lv.smpYtr)))
-    #         lv.mcsmpYtr = deepcopy(lv.smpYtr)
-    #         lv.mcsmpXtr = deepcopy(lv.smpXtr)
-
-    #         lv.resetStatus()
-    #         if lv.getStatus(MAIN) == 1:
-    #             print('lv.smpxtr b4 rollout :',lv.smpXtr, lv.smpYtr,lv.input_space)
-    #             # print('lv.xtr.all() == lv.agent.x_train.all(): ',lv.xtr.all() == lv.agent.x_train.all())
-    #             # print('xtr ytr : ',lv.input_space,lv.agent.x_train,lv.agent.y_train)
-    #             assert lv.xtr.all() == lv.agent.x_train.all()
-    #             assert lv.agent.x_train.all() == lv.agent.simXtrain.all()
-    #             # ag = Agent(gpr_model, xtr, ytr, l)
-    #             # ag(MAIN)
-    #             agents.append(lv.agent)
-    #             # print('- START '*100)
-    #             savetotxt(self.savetxtpath+f'rl_start_agent_{i}', lv.agent.__dict__)
-    #             # print(lv)
-    #             # print(lv.__dict__)
-    #             # print('.'*100)
-    #             # print(lv.agent)
-    #             # print(lv.agent.__dict__)
-    #             # print('-START'*100)
-    #             savetotxt(self.savetxtpath+f'rl_start_reg_{i}', lv.__dict__)
-    #         # else:
-    #         #     lv.smpXtr = []
-    #         #     lv.smpYtr = []
-    #     agents = sorted(agents, key=lambda x: x.id)
-
-    #     self.num_agents = num_agents
-    #     serial_mc_iters = [int(int(self.mc_iters)/self.numthreads)] * self.numthreads
-    #     print("serial_mc_iters: ",serial_mc_iters)
-    #     # print(' agents samples : ',[(i.x_train, i.y_train) for i in agents])
-    #     print('min obs so far from samples: ', [(i.x_train[np.argmin(i.y_train),:], np.min(i.y_train)) for i in agents])
-
-    #     root = self.get_exp_values(agents)
-
-    #     return None, root , agents 
            
     # Rollout from the current state of the agents
     def rollout(self, m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng):
@@ -216,11 +108,14 @@ class RolloutEI(InternalBO):
                 # print('% tree ')
                 # print_tree(rl_root)
                 # print('-'*20)
-                if m == self.num_agents - 1:
-                    break
+                # if m == self.num_agents:
+                #     break
 
                 # Get the different possible splits for the chosen config rl_root
                 roots = getRootConfigs(m, rl_root, tmpGP, 1, self.num_agents, self.tf_dim, tf, behavior, rng)
+                # print(f'min {m} roots [0] ')
+                # print_tree(roots[0])
+                # print('-'*20)
                 # Create different possbile agent assignments and next set of samples to evaluate
                 xroots, agentModels, tmpGP = genSamplesForConfigsinParallel(m, tmpGP, configs['configs']['smp'], self.num_agents, roots, "lhs_sampling", self.tf_dim, self.tf, self.behavior, rng)
                 cfgroots  = np.hstack((xroots))
@@ -276,15 +171,16 @@ class RolloutEI(InternalBO):
             print(f'* end of {m} minz'*10)
             print('tmp gp end of horizon shape ',tmpGP.dataset.x_train.shape)
 
-            print()
-            print(f'- end of {h}'*20)
-            print_tree(rl_root)
-            print()
+            # print()
+            # print(f'- end of {h}'*20)
+            # print_tree(rl_root)
+            # print()
             h -= 1
             if h <= 0 :
                 break
                 # exit(1)
-        return rl_root, f_ro
+        fincfgIdx = np.random.randint(len(roots))
+        return roots[fincfgIdx], f_ro, tmpGP
                 
     # Function to get the config with min approx Q factor across the active regions
     def forward(self, m, tmpGP, xt, roots, h, totalVolume, rng):
@@ -324,7 +220,7 @@ class RolloutEI(InternalBO):
 
         # Get the f* among all the active regions 
         ytr = self.get_min_across_regions(agents, tmpGP) 
-        print('min across reg : ', ytr)
+        # print('min across reg : ', ytr)
 
         # for ix, a in enumerate(agents[m:]):
         for a in xt[m:self.num_agents]:
@@ -360,8 +256,13 @@ class RolloutEI(InternalBO):
                         mu, std = self._surrogate(model, maxEI)
                         f_xt = np.random.normal(mu,std,1)
                         tmpGP.dataset.appendSamples(maxEI, f_xt)
+
+                        mu, std = self._surrogate(model, xtr)
+                        for i in range(len(xtr)):
+                            f_xt = np.random.normal(mu[i],std[i],1)
+                            reg.yOfsmpIndices[i] = f_xt
                     
-                    print('reg cost : ', a.agentId, np.min(smpEIs))
+                    # print('reg cost : ', a.agentId, np.min(smpEIs))
                     reg.rewardDist[ix] = np.min(smpEIs)
                     # exit(1)
                 
@@ -376,35 +277,60 @@ class RolloutEI(InternalBO):
                         if reward > -1*smp_reward:
                             reward = ((-1 * smp_reward))
                     reg.rewardDist[ix] = (reward)
-                    print('inact reg cost : ', reward)
+                    # print('inact reg cost : ', reward)
             
             agents = sorted(agents, key=lambda x: x.agentId)
-            print('agents after sorting :', agents)
+            # print('agents after sorting :', agents)
 
         # Get the minimum encountered so far from the active regions based on predicted values
-        f_ro = self.get_min_across_regions(agents, tmpGP)
+        f_ro = self.get_min_across_region_samples(agents)
         return f_ro, rl_root
 
     # Function to get the minimum across the set of active regions
     def get_min_across_regions(self, agents, tmpGP):
         minytrval = float('inf')
         minytr = []
-        for ix, a in enumerate(agents):
-            for ia in agents:
-                try:
-                    minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
-                except IndexError:
-                    # print('-'*20)
-                    print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
-                    # print('-'*20)
-                    # exit(1)
-                    continue
-                if minytrval > tmpGP.dataset.y_train[minidx]:
-                    minytrval = tmpGP.dataset.y_train[minidx]
-                    minytr = tmpGP.dataset.y_train[minidx] #min(minytrval, tmpGP.dataset.y_train[minidx])
+        # for ix, a in enumerate(agents):
+        for ia in agents:
+            try:
+                minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
+            except IndexError:
+                # print('-'*20)
+                print(tmpGP.dataset, tmpGP.dataset.x_train.shape,  tmpGP.dataset.y_train.shape)
+                # print('-'*20)
+                # exit(1)
+                continue
+            if minytrval > tmpGP.dataset.y_train[minidx]:
+                minytrval = tmpGP.dataset.y_train[minidx]
+                minytr = tmpGP.dataset.y_train[minidx] #min(minytrval, tmpGP.dataset.y_train[minidx])
         ytr = minytr
 
         return ytr
+    
+    def get_min_across_region_samples(self, agents):
+        minytrval = float('inf')
+        minytr = []
+        # for ix, a in enumerate(agents):
+        for ia in agents:
+            try:
+                # for i in ia.yOfsmpIndices: 
+                #     mu, std = self._surrogate(ia.model, ia.smpIndices)
+                #     f_xt = np.random.normal(mu,std,1)
+                #     assert ia.yOfsmpIndices[i] == f_xt
+                minytrval = min(minytrval, min(ia.yOfsmpIndices.values()))
+            except AssertionError:
+                # print('-'*20)
+                # print(ia.samples, ia.samples.x_train.shape,  ia.samples.y_train.shape)
+
+                # print('-'*20)
+                exit(1)
+                # continue
+        #     if minytrval > ia.yOfsmpIndices[minidx]:
+        #         minytrval = ia.yOfsmpIndices[minidx]
+        #         minytr = ia.yOfsmpIndices[minidx] #min(minytrval, tmpGP.dataset.y_train[minidx])
+        # ytr = minytr
+
+        return minytrval
         
     # Reward calulation for inactive regions
     # Reward is the difference between the observed min and the obs from the posterior
@@ -439,28 +365,30 @@ def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, hori
     
     for l in lvs:
         l.state = State.ACTUAL
-        print("obs isx b4" , l.obsIndices)
+        # print("obs isx b4" , l.obsIndices)
     root = saveRegionState(root)  # Save the original state of the tree
     # print('lvs : ', lvs, [(i.input_space, i.rewardDist, i.avgRewardDist) for i in lvs])
-    
+    # for lt in lvs:
+    #         print('lt.saved_state: ',lt.input_space, lt.saved_state['agentList'], lt.saved_state['status'])
 
-    print('^'*50)
-    print_tree(root)
-    print('^'*50)
+    # print('^'*50)
+    # print_tree(root)
+    # print('^'*50)
     f_nc = 0
     for r in tqdm(range(mc_iters)):
         print(f'= MC {r}'*50)
         start_time = time.time()  # Start time
 
         # Rollout the current configuration
-        root, f_ro = roll.rollout(m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng)  # Execute the operation and build the tree
+        root, f_ro, smpGP = roll.rollout(m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng)  # Execute the operation and build the tree
         
         # Sum up the min ecountered over N^(RO) times 
         f_nc += f_ro
 
         # Get actual leaves
         lvs = getActualState(root)
-        
+        # for lt in lvs:
+        #     print('lt.saved_state: ',lt.input_space, lt.saved_state['agentList'], lt.saved_state['status'])
         for sima in lvs:
             # Accumulate the improvements across regions to make the actual jumps
             accumulate_rewardDist(sima, num_agents)
@@ -473,17 +401,21 @@ def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, hori
 
         end_time = time.time()  # End time
         total_time += end_time - start_time  
-        # print('^'*50)
+        # print(f'^ {r}'*50)
         # print_tree(root)
         # print('^'*50)
         # Restore region state
         # restoreRegionState(root, ['avgRewardDist','yOfsmpIndices'])  
+        numag=0
         for l in lvs:
             restoreRegionState(l, ['avgRewardDist','yOfsmpIndices'])  
             # print('b4 state : ', l, l.input_space, root, root.input_space)
             l.state = State.ACTUAL
             saveRegionState(l)
             # print('l after obsinx :', l.obsIndices)
+            if l.getStatus() == RegionState.ACTIVE.value:
+                numag += 1
+        assert numag == num_agents
 
         # print('^ after restore'*10)
         # print_tree(root, routine="MAIN")
@@ -499,5 +431,6 @@ def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, hori
     # exit(1)
     # Average the min ecountered over N^(RO) times 
     F_nc = f_nc/mc_iters
-    return root, F_nc
+    print('F_NC', F_nc)
+    return root, F_nc #, smpGP
 

@@ -320,7 +320,7 @@ def reassignUsingRewardDist(root, routine, agents, agentID, jump_prob):
     currSubreg.reduceNumAgents()
     currSubreg.removeFromAgentList(currSubreg.agentId)
     
-    subregs[minsubregIdx[agentID]].updateStatus(routine.ACTIVE)
+    subregs[minsubregIdx[agentID]].updateStatus(RegionState.ACTIVE)
     subregs[minsubregIdx[agentID]].increaseNumAgents()
     subregs[minsubregIdx[agentID]].addAgentList(currSubreg.agentId)
     assert len(subregs[minsubregIdx[agentID]].getAgentList()) ==  subregs[minsubregIdx[agentID]].getnumAgents()
@@ -332,7 +332,7 @@ def partitionRegions(root, globalGP, subregions, routine, dim):
     for subr in subregions:
         # If the sub region has more than one agent 
         if subr.getnumAgents() > 1:
-            subr.updateStatus(routine.INACTIVE)
+            subr.updateStatus(RegionState.INACTIVE.value)
             internal_factorized = find_prime_factors(subr.getnumAgents())
             ch = get_subregion(deepcopy(subr), subr.getnumAgents() , internal_factorized, dim)
             subr.add_child(ch)
@@ -346,21 +346,24 @@ def partitionRegions(root, globalGP, subregions, routine, dim):
 
         # If the sub region has no agent 
         elif subr.getnumAgents() == 0:
-            subr.updateStatus(routine.INACTIVE.value)
+            subr.updateStatus(RegionState.INACTIVE.value)
             subr.agentId = None
             assert len(subr.getAgentList()) == 0
 
         # If the sub region has exactly one agent 
         elif subr.getnumAgents() == 1:
-            subr.updateStatus(routine.ACTIVE.value)
+            subr.updateStatus(RegionState.ACTIVE.value)
             assert len(subr.agentList) == 1
             aidx = subr.getAgentList()
             subr.agentId = aidx[0]
             subr.updatesmpObs()
+        
+        if routine == 'MAIN':
+                subr.state = None
             
     newSubreg = root.find_leaves()
     for newsub in newSubreg:
-        if newsub.getStatus() == routine.ACTIVE.value:
+        if newsub.getStatus() == RegionState.ACTIVE.value:
             newsub.addAgentList(newsub.agentId)
     return root
 
@@ -529,7 +532,11 @@ def genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_
                 allsmp = Observations(allxtr , allytr)
                 
                 for id, l in enumerate(Xs_root.find_leaves()):
-                    nid = nid % len(range(m+1,num_agents))
+                    # print('nid = nid  len(r m: ', m)
+                    if len(range(m+1,num_agents)) != 0:
+                        nid = nid % len(range(m+1,num_agents))
+                    else:
+                        nid = nid % len(range(m,num_agents))
                     if l.getStatus() == RegionState.ACTIVE.value and l.agentId > m:
                             
                             l.samples = allsmp
@@ -638,7 +645,7 @@ def restoreRegionState(node, keeplist):
     return node
 
 # Function to consider different possible splits of a region
-def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim, tf, behavior, rng):
+def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim, tf, behavior, rng, routine=None):
 
         roots = []
         for dim in range(tf_dim):
@@ -663,57 +670,67 @@ def getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim, tf, behavior
                 
             else:
                 # Partition the sub region among 'm' agents and build local GPs
-                jump = random.random()
                 root = deepcopy(X_root)
-                agents =[]
-                for id, l in enumerate(root.find_leaves()):
-                    if l.getStatus() == RegionState.ACTIVE.value:
-                        # print('b4 obs idx: ', l.obsIndices)
-                        # l.rewardDist = l.avgRewardDist.reshape((num_agents)) #?
-                        agents.append(l)
                 
-                # Reassign and partition
-                subregions = reassignUsingRewardDist(root, RegionState, agents, m, jump_prob=jump)
-                root = partitionRegions(root, globalGP, subregions, RegionState, dim)
-                print('after moving and partitioning ')
-                # print('treee inside root config ')
-                # print_tree(root)
+                root = reassignAndPartition(m, root, globalGP, num_agents, routine, dim, tf_dim, tf, behavior, rng)
                 
-                # Check inactive regions  
-                for id, l in enumerate(root.find_leaves()):
-                    if l.getStatus() == RegionState.ACTIVE.value:
-                        l.updateObs(globalGP)
-                        print('after move obs idx: ', l.input_space, l.obsIndices)
-
-                        xtsize = int((tf_dim*2)/num_agents) - len(l.obsIndices)
-                        # If the observation to build a model is empty, then sample points to build local GP
-                        if len(l.obsIndices) == 0: #xtsize > 0: 
-
-                            x_train = lhs_sampling( xtsize, l.input_space, tf_dim, rng)
-                            y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
-
-                            globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
-                        # Build the respective local GPs 
-                        localGP = Prior(globalGP.dataset, l.input_space)
-                        model, indices = localGP.buildModel()
-                        l.updateModel(indices, model)
-                        
-                        localGP = Prior(globalGP.dataset, l.input_space)
-                        model, indices = localGP.buildModel()
-                        l.updateModel(indices, model)
-                        
-                    # a.resetRegions()
-                    if l.getStatus() == RegionState.INACTIVE.value:
-                        l.agentList = []
-                    # a.resetavgRewardDist(m) #?
-                        
                 roots.append(root)
             
-        print('roots after dim: ', roots)
-        for i in roots:
-            print_tree(i)
+        # print('roots after dim: ', roots)
+        # for i in roots:
+        #     print_tree(i)
 
         return roots
+
+def reassignAndPartition(m, root, globalGP, num_agents, routine, dim, tf_dim, tf, behavior, rng):
+    agents =[]
+    for id, l in enumerate(root.find_leaves()):
+        if l.getStatus() == RegionState.ACTIVE.value:
+            # print('b4 obs idx: ', l.obsIndices)
+            # l.rewardDist = l.avgRewardDist.reshape((num_agents)) #?
+            agents.append(l)
+
+    # Reassign and partition
+    jump = random.random()
+    subregions = reassignUsingRewardDist(root, RegionState, agents, m, jump_prob=jump)
+    root = partitionRegions(root, globalGP, subregions, routine, dim)
+    # print('after moving and partitioning ')
+    # print('treee inside root config ')
+    # print_tree(root)
+    
+    # Check inactive regions  
+    for id, l in enumerate(root.find_leaves()):
+        if l.getStatus() == RegionState.ACTIVE.value:
+            l.updateObs(globalGP)
+            # print('after move obs idx: ', l.input_space, l.obsIndices)
+
+            xtsize = int((tf_dim*2)/num_agents) - len(l.obsIndices)
+            # If the observation to build a model is empty, then sample points to build local GP
+            if len(l.obsIndices) == 0: #xtsize > 0: 
+
+                x_train = lhs_sampling( xtsize, l.input_space, tf_dim, rng)
+                y_train, falsified = compute_robustness(x_train, tf, behavior, agent_sample=True)
+
+                globalGP.dataset = globalGP.dataset.appendSamples(x_train, y_train)
+            # Build the respective local GPs 
+            localGP = Prior(globalGP.dataset, l.input_space)
+            model, indices = localGP.buildModel()
+            l.updateModel(indices, model)
+            
+            # localGP = Prior(globalGP.dataset, l.input_space)
+            # model, indices = localGP.buildModel()
+            # l.updateModel(indices, model)
+            l.resetavgRewardDist(m)    #? should i use the reward dist from previous minimizations 
+
+            
+        # a.resetRegions()
+        if l.getStatus() == RegionState.INACTIVE.value:
+            l.agentList = []
+         #?
+    
+    return root
+                        
+                
     
 # @profile
 def genSamplesForConfigsinParallel(m, globalGP, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):

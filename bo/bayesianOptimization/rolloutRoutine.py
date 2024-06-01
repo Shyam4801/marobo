@@ -70,10 +70,10 @@ class RolloutRoutine:
 
         Xs_roots = results
         print("Xs_root from joblib ",len(Xs_roots))
-
+        # print('XFnc : ', F_nc)
         print('Xs_roots: ', Xs_roots)
 
-        return Xs_roots, F_nc
+        return Xs_roots, F_nc #, smpGP
     
     def evalConfigs(self, Xs_root, num_agents, region_support, rng):
         self.ei_roll = RolloutEI()

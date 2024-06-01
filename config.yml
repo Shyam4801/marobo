@@ -7,5 +7,5 @@ log:
 testfunc: 'rastrigin'
 configs:
   perm: 1
-  smp: 1
+  smp: 5
 parallel: False
