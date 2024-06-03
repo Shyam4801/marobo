@@ -69,7 +69,6 @@ class RolloutBO(BO_Interface):
         globalObs = Observations(x_train, y_train)
         # Build the model over the entire region initially
         globalGP = Prior(globalObs, region_support)
-        print(globalGP)
         model , indices = globalGP.buildModel()
         X_root.updateModel(indices, model)
 
@@ -79,30 +78,10 @@ class RolloutBO(BO_Interface):
         
         # Sample points using the multi agent routine 
         for sampleIdx in tqdm(range(num_samples)):
-            print('globalXtrain, globalYtrain :', min(globalObs.y_train))
-            print('_____________________________________', sampleIdx)
-            print('_____________________________________')
-            print('global dataset : ', globalObs.x_train.shape, globalObs.y_train.shape)
-            print('_____________________________________')
-
-            
-            xroots, agentModels, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
+            # Get the set of config samples for evaluation using Rollout
+            xroots, _, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
-            agentModels  = np.hstack((agentModels))
 
-            # print('xroots : ', xroots)
-            for i in xroots:
-                print_tree(i)
-                print(globalGP)
-                for id, l in enumerate(i.find_leaves()):
-                    localGP = Prior(globalGP.dataset, l.input_space)
-                    # print(l.__dict__)
-                    try:
-                        assert localGP.checkPoints(globalGP.dataset.x_train[l.obsIndices]) == True
-                    except AssertionError:
-                        print(l.__dict__)
-                        exit(1)
-            
             # Calling the main routine to get the configuration as a result of multi agent rollout
             main = MainRoutine()
             X_root, globalGP = main.sample(sampleIdx, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
@@ -121,10 +100,7 @@ class RolloutBO(BO_Interface):
                 ytr = globalGP.dataset.y_train[l.obsIndices]
                 smpEIs = (-1 * ei_roll.cost(xtr, ytr, l.model, "multiple"))
                 maxEI = np.array([xtr[np.argmin(smpEIs), :]])
-                # maxEI = ei_roll._opt_acquisition(ytr, l.model, l.input_space, rng)
-                # maxEI = np.array([maxEI])
                 fmin, _ = compute_robustness(maxEI, test_function, behavior, agent_sample=False)
-                print('pred x  : ', maxEI, fmin)
 
                 # Append the new locations to the entire observations set
                 globalGP.dataset = globalGP.dataset.appendSamples(maxEI, fmin)
@@ -133,7 +109,7 @@ class RolloutBO(BO_Interface):
                 localGP = Prior(globalGP.dataset, l.input_space)
                 model , indices = localGP.buildModel()
                 l.updateModel(indices, model)
-
+                # Reset the reward/cost distribution of regions
                 l.resetavgRewardDist(0)
 
             roots = [X_root]

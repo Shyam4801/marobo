@@ -4,6 +4,19 @@ import numpy as np
 from ..sampling import *
 from ..utils.computeRobustness import compute_robustness
 
+"""
+Class representing observations with methods for filtering point indices based on a region, checking if a point is within a region, getting the index of the minimum value, and appending new samples to the observations.
+
+Attributes:
+    x_train (np.ndarray): Array containing the training data points.
+    y_train (np.ndarray): Array containing the corresponding function values.
+
+Methods:
+    filter_point_indices(region): Filter point indices based on a region.
+    point_in_region(point, region): Check if a point is within a region.
+    _getMinIdx(indices): Get the index of the minimum value.
+    appendSamples(xtr, ytr): Append new samples to the observations.
+"""
 @dataclass
 class Observations:
     x_train: np.ndarray
@@ -30,17 +43,10 @@ class Observations:
         return filtered_indices
     
     def point_in_region(self, point, region):
-        # Check if each coordinate of the point is within the corresponding bounds of the region
-        # res = True
-        # for point in points:
         res = all(np.logical_and(region[:, 0] <= point, point <= region[:, 1]))
-            # if res == False:
-                # print('pt not in region :',agent.id, point, region)
         return res
     
     def _getMinIdx(self, indices):
-        # print('indices ', indices, self.y_train[indices])
-        # print('np.argmin(self.x_train[indices]): ', np.argmin(self.y_train[indices]), indices[np.argmin(self.y_train[indices])] )
         return indices[np.argmin(self.y_train[indices])]
     
     def appendSamples(self, xtr, ytr):
@@ -48,6 +54,6 @@ class Observations:
         if len(ytr) != 0:
             self.y_train = np.hstack((self.y_train, ytr))
 
-        newidxs = np.where(np.isin(self.x_train, xtr))[0]
+        # newidxs = np.where(np.isin(self.x_train, xtr))[0]
         return self
         

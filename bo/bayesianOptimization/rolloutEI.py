@@ -18,12 +18,12 @@ class RolloutEI(InternalBO):
         pass
            
     # Rollout from the current state of the agents
-    def rollout(self, m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng):
+    def rollout(self, actm, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng):
 
         """Simulated agent outcomes (Step 1: Configuration generation followed by Step 2: Configuration rollout)
 
         Args: 
-            m: ith agent to rollout fixing (1 to i-1) agent configurations
+            actm: ith agent index to rollout fixing (1 to i-1) agent configurations
             root: Configuration to rollout 
             horizon: Steps to simulate the agent outcomes
             num_agents: Number of agents
@@ -37,8 +37,6 @@ class RolloutEI(InternalBO):
         self.tf = tf
         self.tf_dim = tf_dim
         self.behavior = behavior
-        reward = 0
-        actm = m 
         h = horizon
         self.tf_dim = len(root.input_space)
         rl_root = root 
@@ -46,52 +44,32 @@ class RolloutEI(InternalBO):
         
         # Simulate the state of the agents by keeping a copy of the locations sampled
         tmpGP = deepcopy(globalGP)
-        ytr = np.min(tmpGP.dataset.y_train)
         # Rollout the agent movements for 'h' horizons
         while(True):
-            totalVolume = 0
-            xt = rl_root.find_leaves() 
-            for reg in xt:
-                totalVolume += reg.getVolume()
 
             agents = []
-            for r in xt:
+            for r in rl_root.find_leaves():
                 if r.getStatus() == RegionState.ACTIVE.value:
                     agents.append(r)
             
             agents = sorted(agents, key=lambda x: x.agentId)
 
-            
             cfgroots = [rl_root]
-            # f_ro, rl_root = self.forward(actm, tmpGP, xt, cfgroots, h, totalVolume, rng)
-            # # Get the different possible splits for the chosen config rl_root
-            # roots = getRootConfigs(m, rl_root, tmpGP, 1, self.num_agents, self.tf_dim, tf, behavior, rng)
             # Perform rollout one agent at a time
             for m in range(actm, self.num_agents):
                 # Get the config with the min approx Q factor
-                f_ro, rl_root = self.forward(m, tmpGP, xt, cfgroots, h, totalVolume, rng)
-                print('m seq of minz :', m, f_ro, 'actm : ',actm)                  
+                f_ro, rl_root = self.forward(m, tmpGP, cfgroots, h, rng)
                 # Get the different possible splits for the chosen config rl_root
                 roots = getRootConfigs(m, rl_root, tmpGP, 1, self.num_agents, self.tf_dim, tf, behavior, rng)  
-                # print('% tree ')
-                # print_tree(rl_root)
-                # print('-'*20)
-                # if m == self.num_agents:
-                #     break
-
-                
-                # print(f'tree after  getRootConfigs {m}')
-                # print_tree(roots[0])
-                # print('-'*20)
                 # Create different possbile agent assignments and next set of samples to evaluate
-                xroots, agentModels, tmpGP = genSamplesForConfigsinParallel(m, tmpGP, configs['configs']['smp'], self.num_agents, roots, "lhs_sampling", self.tf_dim, self.tf, self.behavior, rng)
+                xroots, _, tmpGP = genSamplesForConfigsinParallel(m, tmpGP, configs['configs']['smp'], self.num_agents, roots, "lhs_sampling", self.tf_dim, self.tf, self.behavior, rng)
                 # genSamplesForConfigs(m, globalGP, self.num_agents, roots, "lhs_sampling",self.tf_dim, self.tf, self.behavior, rng)
                 cfgroots  = np.hstack((xroots))
-                agentModels  = np.hstack((agentModels))
 
                 # Check if the observations and samples for each configuration are not empty
                 # Build the local GPs for the respective configs based on locations sampled during simulation
                 for crt in cfgroots:
+                    # Error handling to check region samples belong to the respective region 
                     for id, l in enumerate(crt.find_leaves()): 
                         localGP = Prior(tmpGP.dataset, l.input_space)
                         try:
@@ -104,10 +82,11 @@ class RolloutEI(InternalBO):
                     for a in crt.find_leaves():    
                         if a.getStatus() == RegionState.ACTIVE.value:
                             if len(a.obsIndices) == 0:
+                                # Use the parent region model to choose the predicted values for the samples in place of actual func evals
                                 parent = find_parent(crt, a)
                                 a.model = deepcopy(parent.model)
                                 
-                                actregSamples = lhs_sampling(self.tf_dim*2 , a.input_space, self.tf_dim, rng)  #self.tf_dim*10
+                                actregSamples = lhs_sampling(self.tf_dim*10 , a.input_space, self.tf_dim, rng)  #self.tf_dim*10
                                 mu, std = self._surrogate(a.model, actregSamples)  #agent.simModel
                                 actY = []
                                 for i in range(len(actregSamples)):
@@ -120,47 +99,32 @@ class RolloutEI(InternalBO):
                             localGP = Prior(tmpGP.dataset, a.input_space)
                             a.model , a.obsIndices = localGP.buildModel() #updateObs()   
 
-                 
-            
-            print(f'* end of {m} minz'*10)
-            # print('% tree ')
-            # print_tree(roots[0])
-            # print('-'*20)
-            print('tmp gp end of horizon shape ',tmpGP.dataset.x_train.shape)
-
-            # print()
-            # print(f'- end of {h}'*20)
-            # print_tree(rl_root)
-            # print()
+            # Decrement horizon index
             h -= 1
             if h <= 0 :
                 break
-                # exit(1)
+        # Choose random configuration as a result of the final agent movement
         fincfgIdx = np.random.randint(len(roots))
-        # print('% tree ')
-        # print_tree(roots[fincfgIdx])
-        # print('-'*20)
         return roots[fincfgIdx], f_ro
                 
     # Function to get the config with min approx Q factor across the active regions
-    def forward(self, m, tmpGP, xt, roots, h, totalVolume, rng):
+    def forward(self, m, tmpGP, roots, h, rng):
         """Configuration evaluation 
 
         Args: 
             m: ith agent to rollout fixing (1 to i-1) agent configurations
             tmpGP: Copy of the observations encountered so far 
             h: Steps to simulate the agent outcomes
-            xt: Partitioned regions (Active and inactive leaf nodes)
 
         Return:
-            f_ro: Max EI among the agents
-            f_g: Configurtion correcponding to the max EI
+            f_ro: Minimum function value encountered among the agents
+            f_g: Configurtion correcponding to the Minimum function value encountered
                     
         """
         f_ro = np.float64('inf')
         f_g = None
         for ix, rl_root in enumerate(roots):
-            f_cfg, mincfg = self.get_cfg_EI(m, tmpGP, xt, rl_root, h, totalVolume, rng)
+            f_cfg, mincfg = self.get_cfg_EI(m, tmpGP, rl_root, h, rng)
             if f_ro > f_cfg:
                 f_ro = f_cfg
                 f_g = mincfg
@@ -168,11 +132,17 @@ class RolloutEI(InternalBO):
         return f_ro, f_g
     
     # Function to evaluate the samples for each config  
-    def get_cfg_EI(self, m, tmpGP, xt, rl_root, h, totalVolume, rng):
-        xt = rl_root.find_leaves()
-        xt = sorted(xt, key=lambda x: (x.getStatus() == RegionState.INACTIVE.value, x.agentId if x.getStatus() == RegionState.ACTIVE.value else float('inf')))
+    def get_cfg_EI(self, m, tmpGP, rl_root, h, rng):
+        # Get the active and inactive regions
+        localRegions = rl_root.find_leaves()
+        # Volume used during inactive region sampling and evaluation
+        totalVolume = 0
+        for reg in localRegions:
+                totalVolume += reg.getVolume()
+        
+        localRegions = sorted(localRegions, key=lambda x: (x.getStatus() == RegionState.INACTIVE.value, x.agentId if x.getStatus() == RegionState.ACTIVE.value else float('inf')))
         agents = []
-        for r in xt:
+        for r in localRegions:
             if r.getStatus() == RegionState.ACTIVE.value:
                 agents.append(r)
         
@@ -181,29 +151,19 @@ class RolloutEI(InternalBO):
         # Get the f* among all the active regions 
         ytr = self.get_min_across_regions(agents, tmpGP) 
         
-        for a in xt[m:self.num_agents]:
-            # a = reg
+        for a in localRegions[m:self.num_agents]:
+            # Agent ID
             ix = a.agentId
             # Local GP of agent 
             model = a.model
-            if model == None:
-                print(' No model !')
-                print('h: ', h)
 
-                exit(1)
-
-            for reg in xt[m:]:
+            for reg in localRegions[m:]:
                 # evaluate the samples in the active region
                 if reg.status == RegionState.ACTIVE.value:
-                    # An extension to use the common parent GP instead of local GP
+                    # An extension to use the common parent GP instead of local GP | Hypothesised as a way to induce exploration-exploitation trade off 
                     if a != reg:
                         commonReg = find_common_parent(rl_root, reg, a)
                         model = commonReg.model
-
-                    if model == None:
-                        print(' No common model b/w !', a.simReg.input_space, reg.input_space)
-                        print('h: ', h)
-                        exit(1)
 
                     # Calculate the cost using EI to facilitate jump
                     xtr = reg.samples.x_train[reg.smpIndices]
@@ -212,7 +172,7 @@ class RolloutEI(InternalBO):
                     # Add the location with min cost to the local GPs
                     if a == reg:
                         # Sampling decision: Appending the sample to the observation set to update the local GPs
-                        ytr = tmpGP.dataset.y_train[reg.obsIndices] # region f*
+                        ytr = tmpGP.dataset.y_train[reg.obsIndices] # local region f*
                         localSmpEIs = (-1 * self.cost(xtr, ytr, model, "multiple"))
                         maxEI = np.array([xtr[np.argmin(localSmpEIs), :]])
                         mu, std = self._surrogate(model, maxEI)
@@ -225,10 +185,13 @@ class RolloutEI(InternalBO):
                             f_xt = np.random.normal(mu[i],std[i],1)
                             reg.yOfsmpIndices[i] = f_xt
                     
+                    # Region rewards/costs that facilitate the jumps
                     reg.rewardDist[ix] = np.min(smpEIs)
                 
                 else:
                     # Evaluate the inactive regions by uniformly sampling 
+                    # sample_from_discontinuous_region was a function to sample from a list of different regions of different volume
+                    # Sampling using this helper function is redundant coz only one region is sampled, might as well use uniform sampling (Kept so as not the break the code)
                     smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
                     mu, std = self._surrogate(reg.model, smp)
                     reward = float('inf')
@@ -261,6 +224,7 @@ class RolloutEI(InternalBO):
 
         return ytr
     
+    # Function to get the minimum predicted function value encountered from the evaluated samples
     def get_min_across_region_samples(self, agents):
         minytrval = float('inf')
         minytr = []
@@ -305,19 +269,17 @@ def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, hori
     for l in lvs:
         l.state = State.ACTUAL
     root = saveRegionState(root)  # Save the original state of the tree
-    f_nc = 0
+    f_g = 0
 
     for r in range(mc_iters):
-        print(f'= MC {r}'*50)
-        start_time = time.time()  # Start time
 
         # Rollout the current configuration
         root, f_ro = roll.rollout(m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng)  # Execute the operation and build the tree
         
-        # Sum up the min ecountered over N^(RO) times 
-        f_nc += f_ro
+        # Sum up the approximate Q-factor ecountered over N^(RO) times 
+        f_g += f_ro
 
-        # Get actual leaves
+        # Get actual leaves in order to restore the state
         lvs = getActualState(root)
         for sima in lvs:
             # Accumulate the improvements across regions to make the actual jumps
@@ -327,41 +289,17 @@ def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, hori
             sima.avgRewardDist = np.sum(sima.avgRewardDist, axis=0)
             
 
-        end_time = time.time()  # End time
-        total_time += end_time - start_time  
-        # print(f'^ {r}'*50)
-        # print_tree(root)
-        # print('^'*50)
-        # Restore region state
-        numag=0
         for l in lvs:
-            restoreRegionState(l, ['avgRewardDist','yOfsmpIndices']) #,'samples','smpIndices'])  
-            # print('b4 state : ', l, l.input_space, root, root.input_space)
+            # Restore region state except the reward distribution that facilitate jumps 
+            restoreRegionState(l, ['avgRewardDist','yOfsmpIndices'])
             l.state = State.ACTUAL
             saveRegionState(l)
-            # print('l after obsinx :', l.obsIndices)
-            if l.getStatus() == RegionState.ACTIVE.value:
-                numag += 1
-        assert numag == num_agents
 
-        # print('^ after restore'*10)
-        # print_tree(root, routine="MAIN")
-        # print_tree(root)
-        # exit(1)
-    print('total time ', total_time)
-    # exit(1)
-
-    # Compute the average improvements across regions over N^(RO) times 
+    # Compute the average expected improvements across regions over N^(RO) times 
     for lf in lvs:
             lf.avgRewardDist = lf.avgRewardDist / mc_iters
             lf.rewardDist = lf.avgRewardDist
-    # exit(1)
-    # print('^ after mc '*10)
-    # print_tree(root, routine="MAIN")
-    # print()
-    # print_tree(root)
-    # Average the min ecountered over N^(RO) times 
-    F_nc = f_nc/mc_iters
-    print('F_NC', F_nc)
-    return root, F_nc #, smpGP
+    # Average the min predicted function value ecountered over N^(RO) times 
+    F_g = f_g/mc_iters
+    return root, F_g 
 

@@ -27,10 +27,6 @@ class Fn:
         if not from_agent:
             self.count = self.count + 1
             self.point_history.append([self.count, *args, rob_val])
-        # for k,v in kwargs.items():
-        #     print(k,v)
-        
-        # agent_samples = np.array(list(agent_samples))
         else:
             self.agent_count = self.agent_count + 1
             self.agent_point_history.append(*args)
