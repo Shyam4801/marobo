@@ -517,7 +517,13 @@ def genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_
         agentModels = []
         xroots = []
 
-        print("total comb of roots with assign and dim: ",len(roots))
+        # print("total comb of roots with assign and dim: ",len(roots))
+        # if m == num_agents:
+        #     for r in roots:
+        #         for id, l in enumerate(r.find_leaves()):
+        #             if l.getStatus() == RegionState.ACTIVE.value and l.agentId == m-1:
+        #                 l.updatesmpObs()
+        #     return roots, agentModels, globalGP
         
         # Permute the different possible agent assignments 
         permutations_list = list(permutations(range(m+1,num_agents)))
@@ -572,6 +578,20 @@ def genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_
                 xroots.append(deepcopy(Xs_root))
         return xroots, agentModels, globalGP
 
+# @profile
+def genSamplesForConfigsinParallel(m, globalGP, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+    # Define a helper function to be executed in parallel
+    def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
+        return genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
+
+    # Execute the evaluation function in parallel for each Xs_root item
+    results = Parallel(n_jobs=1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in range(configSamples))
+    
+    roots = [results[i][0] for i in range(configSamples)]
+    agents = [results[i][1] for i in range(configSamples)]
+    globalGP = results[0][2]
+
+    return roots , agents, globalGP
 
 def initAgents(globmodel,region_support, init_sampling_type, init_budget, tf_dim, tf, behavior, rng, store):
         if init_sampling_type == "lhs_sampling":
@@ -730,22 +750,6 @@ def reassignAndPartition(m, root, globalGP, num_agents, routine, dim, tf_dim, tf
     
     return root
                         
-                
-    
-# @profile
-def genSamplesForConfigsinParallel(m, globalGP, configSamples, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-    # Define a helper function to be executed in parallel
-    def genSamples_in_parallel(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng):
-        return genSamplesForConfigs(m, globalGP, num_agents, roots, init_sampling_type, tf_dim, tf, behavior, rng)
-
-    # Execute the evaluation function in parallel for each Xs_root item
-    results = Parallel(n_jobs=-1)(delayed(genSamples_in_parallel)(num_agents, roots, init_sampling_type, tf_dim, tf, behavior, np.random.default_rng(csmp+1)) for csmp in tqdm(range(configSamples)))
-    
-    roots = [results[i][0] for i in range(configSamples)]
-    agents = [results[i][1] for i in range(configSamples)]
-    globalGP = results[0][2]
-
-    return roots , agents, globalGP
 
 # n = Node(1,1)
 # n.reward = 1

@@ -9,16 +9,16 @@ from ..behavior import Behavior
 
 from ..agent.treeOperations import * 
 from ..agent.partition import Node
-# from ..agent.agent import Agent
 from ..agent.constants import *
 from ..agent.localgp import Prior
 from ..agent.observation import Observations
 from ..utils.savestuff import *
 import multiprocessing as mp
 
-from .routine import Routine
 from .mainRoutine import MainRoutine
-# from .rolloutRoutine import RolloutRoutine
+
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
 
 class RolloutBO(BO_Interface):
     def __init__(self):
@@ -34,6 +34,7 @@ class RolloutBO(BO_Interface):
         gpr_model: Callable,
         rng,
         num_agents: int,
+        init_sampling_type = "lhs_sampling",
         behavior:Behavior = Behavior.MINIMIZATION
     ) -> Tuple[NDArray]:
 
@@ -52,7 +53,7 @@ class RolloutBO(BO_Interface):
             x_m: Agent x_train
             y_m: Agent y_train
         """
-        self.horizon = 4
+        self.horizon = configs['horizon']
         falsified = False
         self.tf = test_function
         self.region_support = region_support
@@ -65,30 +66,26 @@ class RolloutBO(BO_Interface):
         tf_dim = region_support.shape[0]
         X_root = Node(self.region_support, RegionState.ACTIVE)
 
-        init_sampling_type = "lhs_sampling"
         globalObs = Observations(x_train, y_train)
-        
+        # Build the model over the entire region initially
+        globalGP = Prior(globalObs, region_support)
+        print(globalGP)
+        model , indices = globalGP.buildModel()
+        X_root.updateModel(indices, model)
 
-        agentsWithminSmps = 0
-        agdic = {0:0,1:0,2:0,3:0}
+        # Get the initial set of configs by partitioning among m agents
+        m = -1
+        roots = getRootConfigs(m, X_root, globalGP, 0, num_agents, tf_dim, test_function, behavior, rng)
         
         # Sample points using the multi agent routine 
-        for sample in tqdm(range(num_samples)):
-            m = -1
+        for sampleIdx in tqdm(range(num_samples)):
             print('globalXtrain, globalYtrain :', min(globalObs.y_train))
-            print('_____________________________________', sample)
+            print('_____________________________________', sampleIdx)
             print('_____________________________________')
             print('global dataset : ', globalObs.x_train.shape, globalObs.y_train.shape)
             print('_____________________________________')
-            if sample == 0:
-                # Build the model over the entire region
-                globalGP = Prior(globalObs, region_support)
-                print(globalGP)
-                model , indices = globalGP.buildModel()
-                X_root.updateModel(indices, model)
+
             
-            # Get the initial set of configs by partitioning among m agents
-            roots = getRootConfigs(m, X_root, globalGP, sample, num_agents, tf_dim, test_function, behavior, rng)
             xroots, agentModels, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, init_sampling_type, tf_dim, self.tf, self.behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
@@ -108,8 +105,7 @@ class RolloutBO(BO_Interface):
             
             # Calling the main routine to get the configuration as a result of multi agent rollout
             main = MainRoutine()
-            X_root, globalGP = main.sample(xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
-            print('roll bo :',X_root)
+            X_root, globalGP = main.sample(sampleIdx, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
 
             ei_roll = RolloutEI()
             agents = []
@@ -118,17 +114,19 @@ class RolloutBO(BO_Interface):
                     agents.append(l)
 
             agents = sorted(agents, key=lambda x: x.agentId)
-            ytr = globalGP.dataset.y_train[l.obsIndices]    
+                
             # Sample new set of agent locations from the winning configuration
             for l in agents: 
                 xtr = l.samples.x_train[l.smpIndices]
+                ytr = globalGP.dataset.y_train[l.obsIndices]
                 smpEIs = (-1 * ei_roll.cost(xtr, ytr, l.model, "multiple"))
                 maxEI = np.array([xtr[np.argmin(smpEIs), :]])
+                # maxEI = ei_roll._opt_acquisition(ytr, l.model, l.input_space, rng)
+                # maxEI = np.array([maxEI])
                 fmin, _ = compute_robustness(maxEI, test_function, behavior, agent_sample=False)
+                print('pred x  : ', maxEI, fmin)
 
-                print('%'*100)
-                print('pred x, pred y: ', fmin, l.agentId, maxEI)
-                print('%'*100)
+                # Append the new locations to the entire observations set
                 globalGP.dataset = globalGP.dataset.appendSamples(maxEI, fmin)
                 
                 # Update the respective local GPs
@@ -136,15 +134,11 @@ class RolloutBO(BO_Interface):
                 model , indices = localGP.buildModel()
                 l.updateModel(indices, model)
 
-            # exit(1)
-            print_tree(X_root) #, RegionState.ACTIVE)
-            # exit(1)
-            
+                l.resetavgRewardDist(0)
 
-        print()
-        print('times when EI pt was chosen',agdic)
-        print()
-        return falsified, self.region_support , None #plot_dict
+            roots = [X_root]
+            
+        return falsified
 
 
 

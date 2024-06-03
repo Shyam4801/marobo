@@ -57,8 +57,10 @@ class RolloutRoutine:
 
         mc = configs['sampling']['mc_iters']
         if configs['parallel']:
-            results = Parallel(n_jobs=-1)(delayed(simulate)(m, Xs_root_item, globalGP=globalGP, mc_iters=mct, num_agents=num_agents, horizon=4, rng=rng) for mct in range(1,mc) for (Xs_root_item) in tqdm(xroots) )
-        
+            res = Parallel(n_jobs=-1)(delayed(simulate)(m, Xs_root_item, globalGP=globalGP, mc_iters=mct, num_agents=num_agents, tf=tf, tf_dim=tf_dim, behavior=behavior, horizon=4, rng=rng) for mct in range(1,mc) for (Xs_root_item) in tqdm(xroots) )
+            results = [res[i][0] for i in range(len(res))]
+            F_nc = [res[i][1] for i in range(len(res))]
+
         else:
             results=[]
             F_nc = []

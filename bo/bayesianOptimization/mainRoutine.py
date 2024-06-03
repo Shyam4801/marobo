@@ -17,7 +17,8 @@ class MainRoutine:
          pass
     
     def sample(self, 
-               xroots: list, 
+               sampleIdx, 
+               xroots, 
                globalGP, 
                num_agents: int, 
                tf_dim: int, 
@@ -37,35 +38,29 @@ class MainRoutine:
                     
         """
         ei_roll = RolloutEI()
+        m = 0
+        # X_root = self.run(m, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
         for m in range(num_agents):
             
-
             # Rollout the configurations and get the config with min f_ro
-            minXroot = self.run(m, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
-            print(f'end of MAIN minz {m}')
-            
+            X_root = self.run(m, xroots, globalGP, num_agents, tf_dim, test_function, behavior, rng)
+            # print(f'end of MAIN minz {m}')
+            # print(f'- after end main {m} min'*20)
+            # print_tree(X_root)
+            # print('-'*20)
+
             # Get the next location from agent m and its true function value for different possible cuts
-            roots = getRootConfigs(m, minXroot, globalGP, 1, num_agents, tf_dim, test_function, behavior, rng, routine='MAIN')
+            roots = getRootConfigs(m, X_root, globalGP, 1, num_agents, tf_dim, test_function, behavior, rng, routine='MAIN')
 
-            
             for i in roots:
-                # print('in main routine')
-                # print_tree(i, 'MAIN')
-                for id, l in enumerate(i.find_leaves()):
-                    ytr = globalGP.dataset.y_train[l.obsIndices]    
+                for id, l in enumerate(X_root.find_leaves()):
+                    
                     if l.getStatus() == RegionState.ACTIVE.value and l.agentId == m:
-                        if len(l.obsIndices ) == 0:
-                            print('len(l.obsIndices ): ', l, l.input_space )
-                            exit(1)
-
                         xtr = l.samples.x_train[l.smpIndices]
+                        ytr = globalGP.dataset.y_train[l.obsIndices]    # region f*
                         smpEIs = (-1 * ei_roll.cost(xtr, ytr, l.model, "multiple"))
                         maxEI = np.array([xtr[np.argmin(smpEIs), :]])
 
-                        # minidx = globalGP.dataset._getMinIdx(l.obsIndices)
-                        # fmin = globalGP.dataset.y_train[minidx]
-
-                        # x_opt = ei_roll._opt_acquisition(fmin, l.model, l.input_space, rng)
                         yofEI, _ = compute_robustness(maxEI, test_function, behavior, agent_sample=True)
 
                         print('agent actual sample decision : ', l.agentId, maxEI, yofEI)
@@ -73,26 +68,18 @@ class MainRoutine:
                         globalGP.dataset = globalGP.dataset.appendSamples(maxEI, yofEI)
                         
                         localGP = Prior(globalGP.dataset, l.input_space)
-                        # X_root.gp = globalGP
                         model , indices = localGP.buildModel()
                         l.updateModel(indices, model)
-            # if m == 2:
-            # print_tree(minXroot, 'MAIN')
-            # print('-'*20)
-            # print_tree(roots[0])
-                # print_tree(minXroot)
-                # exit(1)
+
+            
+
             
             # Fix the configuration for agents 1 to (i-1) using rollout policy and get configs for agents i to m
             xroots, agentModels, globalGP = genSamplesForConfigsinParallel(m, globalGP, configs['configs']['smp'], num_agents, roots, "lhs_sampling", tf_dim, test_function, behavior, rng)
             xroots  = np.hstack((xroots))
             agentModels  = np.hstack((agentModels))
 
-            print('xroots : ', xroots)
             for i in xroots:
-                # print(f'tree after {m} minz')
-                # print_tree(i)
-                # print(globalGP)
                 numag = 0
                 for id, l in enumerate(i.find_leaves()): 
                     # print('l.avgRewardDist: ', l.avgRewardDist, l.input_space)
@@ -107,16 +94,20 @@ class MainRoutine:
                         numag += 1
                 assert numag == num_agents
 
+            
+
+            print(f'- after main {m} min'*20)
+            print_tree(X_root)
+            print('-'*20)
+
 
         fincfgIdx = np.random.randint(len(roots))
         # print('m b4 reass part minXroot : ', m)
-        # print_tree(minXroot, 'MAIN')
+        # print_tree(X_root, 'MAIN')
         # print()
         # print_tree(roots[fincfgIdx])
         # exit(1)
-        # reassignAndPartition(m, minXroot, globalGP, num_agents, dim, tf_dim, test_function, behavior, rng)
-        
-        return roots[fincfgIdx] , globalGP#, smpGP
+        return roots[fincfgIdx] , globalGP
 
     # Responsible for rolling out the configurations and get the config with min f_ro
     def run(self, 
@@ -142,7 +133,6 @@ class MainRoutine:
 
         
         """
-        print('res of rollout', Xs_roots)
         
         rollout  = RolloutRoutine()
         Xs_roots, F_nc = rollout.run(m, Xs_roots, globalGP, num_agents, test_function, tf_dim, behavior, rng)
@@ -150,5 +140,5 @@ class MainRoutine:
         print('Fnc : ',F_nc)
         minXroot = Xs_roots[np.argmin(F_nc)]
         
-        return minXroot #, smpGP
+        return minXroot 
     

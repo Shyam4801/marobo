@@ -182,7 +182,7 @@ class Test_internalBO(unittest.TestCase):
             # return 10 * d + np.sum(x**2 - 10 * np.cos(2 * np.pi * x), axis=0)
 
         range_array = np.array([[-2.5, 3]])  # Range [-4, 5] as a 1x2 array
-        region_support = np.tile(range_array, (10, 1))  # Replicate the range 10 times along axis 0
+        region_support = np.tile(range_array, (4, 1))  # Replicate the range 10 times along axis 0
 
         task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 1))
         glob_mins = np.array([[3]*10,[-2.805118]*10,[-3.779310]*10,[3.584428]*10])
@@ -217,29 +217,11 @@ class Test_internalBO(unittest.TestCase):
             logger = self.logger
         )
 
-        data, rg, plot_res = opt(bo, gpr_model)
+        data = opt(bo, gpr_model)
         
         minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
         
         print('seeds :',seeds, 'minobs: ', minobs)
-        sdf = pd.DataFrame(seeds)
-        sdf.to_csv(timestmp+'/sdf.csv')
-        init_vol = compute_volume(region_support)
-        final_vol = compute_volume(rg)
-        reduction = ((init_vol - final_vol)/init_vol)* 100
-        print('_______________________________')
-        print('reduced ', reduction)
-        print('_______________________________')
-        print('Bounds of final partition: ',rg)
-        print('_______________________________')
-        print()
-        print('Plotting')
-        
-        # minobs = data.history[np.argmin(data.history[:,2]), :]
-        # print(np.array(data.history, dtype=object).shape)
-        # if len(region_support) == 2:
-        #     contour(plot_res['agents'], plot_res['assignments'], plot_res['status'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        # assert np.array(data.history, dtype=object).shape[0] == (maxbud - init_samp)*4 + init_samp
         assert np.array(data.history, dtype=object).shape[1] == 3
 
     def ackley(self):
@@ -355,26 +337,10 @@ class Test_internalBO(unittest.TestCase):
             logger = self.logger
         )
 
-        data, rg, plot_res = opt(bo, gpr_model)
-
-        
-        
+        data = opt(bo, gpr_model)
         minobs, timestmp = logdf(data,task_id, init_samp,maxbud, name+str(sd)+"_"+str(task_id), y_of_mins, rollout=True)
 
-        init_vol = compute_volume(region_support)
-        final_vol = compute_volume(rg)
-        reduction = ((init_vol - final_vol)/init_vol)* 100
-        print('_______________________________')
-        print('reduced ', reduction)
-        print('_______________________________')
-        print('Bounds of final partition: ',rg)
-        print('_______________________________')
         print(minobs)
-
-        # contour(plot_res['agents'], plot_res['assignments'], plot_res['status'], plot_res['region_support'], plot_res['test_function'],plot_res['inactive_subregion_samples'], plot_res['sample'], [glob_mins,y_of_mins], minobs)
-        
-        # assert np.array(data.history, dtype=object).shape[0] == maxbud
-        # assert np.array(data.history, dtype=object).shape[1] == 3
 
     # @log(my_logger=logger)
     def x22y22(self):

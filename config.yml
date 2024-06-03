@@ -6,6 +6,8 @@ log:
   interval: 4
 testfunc: 'rastrigin'
 configs:
-  perm: 1
+  perm: 5
   smp: 5
-parallel: False
+parallel: True
+agents: 4
+horizon: 4
