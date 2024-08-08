@@ -1,269 +1,305 @@
-from typing import Callable, Tuple
 import numpy as np
-from numpy.typing import NDArray
-from scipy.optimize import minimize
-from scipy.stats import norm
 from tqdm import tqdm
-import copy
+from copy import deepcopy
 import time 
 
 from .internalBO import InternalBO
-# from .rolloutIsolated import RolloutBO
-from ..gprInterface import GPR
-from bo.gprInterface import InternalGPR
-from ..sampling import uniform_sampling
-from ..utils import compute_robustness
-from ..behavior import Behavior
-import multiprocessing as mp
-from multiprocessing import Pool
-from functools import partial
+from ..agent.treeOperations import * 
+from ..sampling import uniform_sampling, sample_from_discontinuous_region, lhs_sampling
+import yaml
+from ..utils.savestuff import *
 
-def unwrap_self_f(arg, **kwarg):
-    return RolloutEI.get_pt_reward(*arg, **kwarg)
 
+with open('config.yml', 'r') as file:
+    configs = yaml.safe_load(file)
+  
 class RolloutEI(InternalBO):
     def __init__(self) -> None:
         pass
+           
+    # Rollout from the current state of the agents
+    def rollout(self, actm, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng):
 
-    def sample(
-        self,
-        agent,
-        test_function: Callable,
-        horizon: int,
-        y_train: NDArray,
-        region_support: NDArray,
-        gpr_model: Callable,
-        rng
-    ) -> Tuple[NDArray]:
+        """Simulated agent outcomes (Step 1: Configuration generation followed by Step 2: Configuration rollout)
 
-        """Rollout with EI
+        Args: 
+            actm: ith agent index to rollout fixing (1 to i-1) agent configurations
+            root: Configuration to rollout 
+            horizon: Steps to simulate the agent outcomes
+            num_agents: Number of agents
+            test_function_dimension: The dimensionality of the region. (Dimensionality of the test function)
 
-        Args:
-            test_function: Function of System Under Test.
-            horizon: Number of steps to look ahead
-            y_train: Evaluated values of samples from Training set.
-            region_support: Min and Max of all dimensions
-            gpr_model: Gaussian Process Regressor Model developed using Factory
-            rng: RNG object from numpy
-
-        Raises:
-            TypeError: If y_train is not (n,) numpy array
-
-        Returns:
-            next x values that have minimum h step reward 
+        Return:
+            f_ro: Approximate Q-factor of the configuration after simulating for 'h' horizons
+                    
         """
-        self.mc_iters = 5
-        self.agent = agent
-        self.numthreads = int(mp.cpu_count()/2)
-        self.tf = test_function
-        self.gpr_model = gpr_model
-        self.horizon = horizon
-        self.region_support = region_support
-        self.rng = rng
-        tf_dim = region_support.shape[0]
-        num_samples = 5
-        self.y_train = y_train #copy.deepcopy(np.asarray(test_function.point_history,dtype=object)[:,-1])
-
-        # Choosing the next point
-        x_opt = self._opt_acquisition(y_train, gpr_model, region_support, rng) 
-        # Generate a sample dataset to rollout and find h step observations
-        subx = uniform_sampling(5, region_support, tf_dim, rng)
-        subx = np.vstack([subx,x_opt]) #np.array([x_opt]) #np.vstack([subx,x_opt])
-        print('subx : ',subx)
-        # print('subx :',subx)
-        # Rollout and get h step observations
-        suby = -1 * self.get_exp_values(subx)
-        print('############################################################################')
-        print()
-        print('suby: rollout for 2 horizons with 6 sampled points  :',suby, ' subx:', subx)
-        print()
-        print('############################################################################')
-
-        # Build Gaussian prior model with the sample dataset 
-        for sample in tqdm(range(num_samples)):
-            model = GPR(InternalGPR())
-            model.fit(subx, suby)
-            # Get the next point using EI 
-            pred_sub_sample_x = self._opt_acquisition(suby, model, region_support, rng)  # EI for the outer BO 
-            print('pred_sub_sample_x:  for {sample}: ',pred_sub_sample_x)
-            # Rollout and get h step obs for the above point 
-            pred_sub_sample_y = -1 * self.get_exp_values( pred_sub_sample_x)    # this uses the inner MC to rollout EI and get the accumulated the reward or yt+1
-            print('pred_sub_sample_y:  for {sample} rolled out for 2 horizons : ',pred_sub_sample_y)
-            print()
-            # Stack to update the Gaussian prior
-            subx = np.vstack((subx, pred_sub_sample_x))
-            suby = np.hstack((suby, pred_sub_sample_y))
-        # Find and return the next point with min obs val among this sample dataset 
-        min_idx = np.argmin(suby)
-
-        # lower_bound_theta = np.ndarray.flatten(agent.region_support[:, 0])
-        # upper_bound_theta = np.ndarray.flatten(agent.region_support[:, 1])
-        # fun = lambda x_: -1 * self.get_exp_values(x_)
-        # # min_bo_val = min(suby)
-        # min_bo = np.array(subx[np.argmin(suby), :])
-        # # print('min bo b4 BFGS :',min_bo, min_bo_val[-3],random_samples[-3])
-        # min_bo_val = np.min(suby)
-        # # print('lower_bound_theta: ',list(zip(lower_bound_theta, upper_bound_theta)))
-        # # for _ in range(9):
-        # #     new_params = minimize(
-        # #         fun,
-        # #         bounds=list(zip(lower_bound_theta, upper_bound_theta)),
-        # #         x0=min_bo,
-        # #     )
-
-        # #     if not new_params.success:
-        # #         continue
-
-        # #     if min_bo is None or fun(new_params.x) < min_bo_val:
-        # #         min_bo = new_params.x
-        # #         min_bo_val = fun(min_bo)
-        # new_params = minimize(
-        #     fun, bounds=list(zip(lower_bound_theta, upper_bound_theta)), x0=min_bo
-        # )
-        # min_bo = new_params.x
-        # min_bo_val = fun(min_bo)
-        # print('inside rollout optimise :', min_bo,min_bo_val)
-        return subx[[min_idx],:], np.min(suby) #np.array(min_bo), min_bo_val
-
-    # Get expected value for each point after rolled out for h steps 
-    def get_exp_values(self,eval_pts):
-        eval_pts = eval_pts.reshape((-1,2))
-        num_pts = eval_pts.shape[0]
-        exp_val = np.zeros(num_pts)
-        for i in range(num_pts):
-            exp_val[i] = self.get_pt_reward(eval_pts[[i],:])
-        return exp_val
-    
-    def _evaluate_at_point_list(self, point_to_evaluate):
-        self.point_current = point_to_evaluate
-        partial_getptreard = partial(self.get_pt_reward)
-        # getptreward = RolloutEI()
-        # getptreward.point_current = point_to_evaluate
-        # getptreward.gpr_model = self.gpr_model
-        # getptreward.tf = self.tf
+        self.num_agents = num_agents
+        self.tf = tf
+        self.tf_dim = tf_dim
+        self.behavior = behavior
+        h = horizon
+        self.tf_dim = len(root.input_space)
+        rl_root = root 
         
-        if self.numthreads > 1:
-            serial_mc_iters = [int(self.mc_iters/self.numthreads)] * self.numthreads
-            pool = Pool(processes=self.numthreads)
-            rewards = pool.map(unwrap_self_f, ([self]*5,serial_mc_iters))
-            pool.close()
-            pool.join()
-        else:
-            rewards = self.get_pt_reward(self.point_current, self.mc_iters)
-
-        return np.sum(rewards)/self.numthreads
-
-    # Perform Monte carlo itegration
-    def get_pt_reward(self,current_point, iters=5):
-        reward = 0
-        # for i in range(iters):
-        reward += self.get_h_step_reward(current_point)
-        return reward #(reward/iters)
-    
-    # Rollout for h steps 
-    def get_h_step_reward(self,current_point):
-        reward = 0
-        # Temporary Gaussian prior 
-        tmp_gpr = copy.deepcopy(self.gpr_model)
-        xtr = copy.deepcopy(self.agent.x_train)   #np.asarray(self.tf.point_history,dtype=object)[:,1]
-        print()
-        print('xtr: ', xtr)
-        print()
-        # xtr = [i.tolist() for i in xtr]
-        ytr = copy.deepcopy(self.y_train)
-        h = self.horizon
-        xt = current_point
-
+        
+        # Simulate the state of the agents by keeping a copy of the locations sampled
+        tmpGP = deepcopy(globalGP)
+        # Rollout the agent movements for 'h' horizons
         while(True):
-            np.random.seed(int(time.time()))
-            mu, std = self._surrogate(tmp_gpr, xt.reshape(1, -1))
-            f_xt = np.random.normal(mu,std,1)
-            ri = self.reward(f_xt,ytr)
-            reward += ri
+
+            agents = []
+            for r in rl_root.find_leaves():
+                if r.getStatus() == RegionState.ACTIVE.value:
+                    agents.append(r)
+            
+            agents = sorted(agents, key=lambda x: x.agentId)
+
+            cfgroots = [rl_root]
+            # Perform rollout one agent at a time
+            for m in range(actm, self.num_agents):
+                # Get the config with the min approx Q factor
+                f_ro, rl_root = self.forward(m, tmpGP, cfgroots, h, rng)
+                # Get the different possible splits for the chosen config rl_root
+                roots = getRootConfigs(m, rl_root, tmpGP, 1, self.num_agents, self.tf_dim, tf, behavior, rng)  
+                # Create different possbile agent assignments and next set of samples to evaluate
+                xroots, _, tmpGP = genSamplesForConfigsinParallel(m, tmpGP, configs['configs']['smp'], self.num_agents, roots, "lhs_sampling", self.tf_dim, self.tf, self.behavior, rng)
+                # genSamplesForConfigs(m, globalGP, self.num_agents, roots, "lhs_sampling",self.tf_dim, self.tf, self.behavior, rng)
+                cfgroots  = np.hstack((xroots))
+
+                # Check if the observations and samples for each configuration are not empty
+                # Build the local GPs for the respective configs based on locations sampled during simulation
+                for crt in cfgroots:
+                    # Error handling to check region samples belong to the respective region 
+                    for id, l in enumerate(crt.find_leaves()): 
+                        localGP = Prior(tmpGP.dataset, l.input_space)
+                        try:
+                            assert localGP.checkPoints(tmpGP.dataset.x_train[l.obsIndices]) == True
+                        except AssertionError:
+                            print(l.__dict__)
+                            exit(1)
+
+
+                    for a in crt.find_leaves():    
+                        if a.getStatus() == RegionState.ACTIVE.value:
+                            if len(a.obsIndices) == 0:
+                                # Use the parent region model to choose the predicted values for the samples in place of actual func evals
+                                parent = find_parent(crt, a)
+                                a.model = deepcopy(parent.model)
+                                
+                                actregSamples = lhs_sampling(self.tf_dim*10 , a.input_space, self.tf_dim, rng)  #self.tf_dim*10
+                                mu, std = self._surrogate(a.model, actregSamples)  #agent.simModel
+                                actY = []
+                                for i in range(len(actregSamples)):
+                                    f_xt = np.random.normal(mu[i],std[i],1)
+                                    actY.append(f_xt)
+                                actY = np.hstack((actY))
+                                
+                                tmpGP.dataset = tmpGP.dataset.appendSamples(actregSamples, actY)
+                            # else:
+                            localGP = Prior(tmpGP.dataset, a.input_space)
+                            a.model , a.obsIndices = localGP.buildModel() #updateObs()   
+
+            # Decrement horizon index
             h -= 1
             if h <= 0 :
                 break
-            
-            xt = self._opt_acquisition(self.y_train,tmp_gpr,self.region_support,self.rng)
-            np.append(xtr,[xt])
-            np.append(ytr,[f_xt])
-        return reward
+        # Choose random configuration as a result of the final agent movement
+        fincfgIdx = np.random.randint(len(roots))
+        return roots[fincfgIdx], f_ro
+                
+    # Function to get the config with min approx Q factor across the active regions
+    def forward(self, m, tmpGP, roots, h, rng):
+        """Configuration evaluation 
+
+        Args: 
+            m: ith agent to rollout fixing (1 to i-1) agent configurations
+            tmpGP: Copy of the observations encountered so far 
+            h: Steps to simulate the agent outcomes
+
+        Return:
+            f_ro: Minimum function value encountered among the agents
+            f_g: Configurtion correcponding to the Minimum function value encountered
+                    
+        """
+        f_ro = np.float64('inf')
+        f_g = None
+        for ix, rl_root in enumerate(roots):
+            f_cfg, mincfg = self.get_cfg_EI(m, tmpGP, rl_root, h, rng)
+            if f_ro > f_cfg:
+                f_ro = f_cfg
+                f_g = mincfg
+
+        return f_ro, f_g
     
-    # Reward is the difference between the observed min and the obs from the posterior
-    def reward(self,f_xt,ytr):
+    # Function to evaluate the samples for each config  
+    def get_cfg_EI(self, m, tmpGP, rl_root, h, rng):
+        # Get the active and inactive regions
+        localRegions = rl_root.find_leaves()
+        # Volume used during inactive region sampling and evaluation
+        totalVolume = 0
+        for reg in localRegions:
+                totalVolume += reg.getVolume()
+        
+        localRegions = sorted(localRegions, key=lambda x: (x.getStatus() == RegionState.INACTIVE.value, x.agentId if x.getStatus() == RegionState.ACTIVE.value else float('inf')))
+        agents = []
+        for r in localRegions:
+            if r.getStatus() == RegionState.ACTIVE.value:
+                agents.append(r)
+        
+        agents = sorted(agents, key=lambda x: x.agentId)
+
+        # Get the f* among all the active regions 
+        ytr = self.get_min_across_regions(agents, tmpGP) 
+        
+        for a in localRegions[m:self.num_agents]:
+            # Agent ID
+            ix = a.agentId
+            # Local GP of agent 
+            model = a.model
+
+            for reg in localRegions[m:]:
+                # evaluate the samples in the active region
+                if reg.status == RegionState.ACTIVE.value:
+                    # An extension to use the common parent GP instead of local GP | Hypothesised as a way to induce exploration-exploitation trade off 
+                    if a != reg:
+                        commonReg = find_common_parent(rl_root, reg, a)
+                        model = commonReg.model
+
+                    # Calculate the cost using EI to facilitate jump
+                    xtr = reg.samples.x_train[reg.smpIndices]
+                    smpEIs = (-1 * self.cost(xtr, ytr, model, "multiple"))
+                    maxEI = np.array([xtr[np.argmin(smpEIs), :]])
+                    # Add the location with min cost to the local GPs
+                    if a == reg:
+                        # Sampling decision: Appending the sample to the observation set to update the local GPs
+                        ytr = tmpGP.dataset.y_train[reg.obsIndices] # local region f*
+                        localSmpEIs = (-1 * self.cost(xtr, ytr, model, "multiple"))
+                        maxEI = np.array([xtr[np.argmin(localSmpEIs), :]])
+                        mu, std = self._surrogate(model, maxEI)
+                        f_xt = np.random.normal(mu,std,1)
+                        tmpGP.dataset.appendSamples(maxEI, f_xt)
+
+                        # Keeping track of the sample predicted function values to calculate config cost | Might feel unnecessary but just a way to increase isolation
+                        mu, std = self._surrogate(model, xtr)
+                        for i in range(len(xtr)):
+                            f_xt = np.random.normal(mu[i],std[i],1)
+                            reg.yOfsmpIndices[i] = f_xt
+                    
+                    # Region rewards/costs that facilitate the jumps
+                    reg.rewardDist[ix] = np.min(smpEIs)
+                
+                else:
+                    # Evaluate the inactive regions by uniformly sampling 
+                    # sample_from_discontinuous_region was a function to sample from a list of different regions of different volume
+                    # Sampling using this helper function is redundant coz only one region is sampled, might as well use uniform sampling (Kept so as not the break the code)
+                    smp = sample_from_discontinuous_region(configs['sampling']['num_inactive'], [reg], totalVolume, self.tf_dim, rng, volume=True ) #uniform_sampling(5, internal_inactive_subregion[0].input_space, self.tf_dim, self.rng)
+                    mu, std = self._surrogate(reg.model, smp)
+                    reward = float('inf')
+                    for i in range(len(smp)):
+                        f_xt = np.random.normal(mu[i],std[i],1)
+                        smp_reward = self.costOfInactive(f_xt,ytr)
+                        if reward > -1*smp_reward:
+                            reward = ((-1 * smp_reward))
+                    reg.rewardDist[ix] = (reward)
+            
+            agents = sorted(agents, key=lambda x: x.agentId)
+
+        # Get the minimum encountered so far from the active regions based on predicted values
+        f_ro = self.get_min_across_region_samples(agents)
+        return f_ro, rl_root
+
+    # Function to get the minimum across the set of active regions
+    def get_min_across_regions(self, agents, tmpGP):
+        minytrval = float('inf')
+        minytr = []
+        for ia in agents:
+            try:
+                minidx = tmpGP.dataset._getMinIdx(ia.obsIndices)
+            except IndexError:
+                exit(1)
+            if minytrval > tmpGP.dataset.y_train[minidx]:
+                minytrval = tmpGP.dataset.y_train[minidx]
+                minytr = tmpGP.dataset.y_train[minidx] #min(minytrval, tmpGP.dataset.y_train[minidx])
+        ytr = minytr
+
+        return ytr
+    
+    # Function to get the minimum predicted function value encountered from the evaluated samples
+    def get_min_across_region_samples(self, agents):
+        minytrval = float('inf')
+        minytr = []
+        for ia in agents:
+            try:
+                minytrval = min(minytrval, min(ia.yOfsmpIndices.values()))
+            except AssertionError:
+                exit(1)
+        return minytrval
+        
+    # Cost calulation for inactive regions
+    # Cost is the difference between the observed min and the obs from the posterior
+    def costOfInactive(self,f_xt,ytr):
         ymin = np.min(ytr)
         r = max(ymin - f_xt, 0)
+        # print(' each regret : ', r)
         return r
     
-    def _top5_acquisition(self, y_train: NDArray, gpr_model: Callable, region_support: NDArray, rng) -> NDArray:
-        """Get the sample points
+    # Cost function for active regions which is our base policy heuristic (EI)
+    def cost(self,xt,ytr, model, sample_type='single'):
+        r = self._acquisition(ytr, xt, model,sample_type)
+        return r
 
-        Args:
-            X: sample points
-            y: corresponding robustness values
-            model: the GP models
-            sbo: sample points to construct the robustness values
+# Function to rollout N^(RO) times 
+def simulate(m, root, globalGP, mc_iters, num_agents, tf, tf_dim, behavior, horizon, rng):
+    """Step 2: Simulate Configuration rollout
+
+        Args: 
+            m: ith agent to rollout fixing (1 to i-1) agent configurations
+            root: Configuration to rollout
+            mc_iters: Number of times to repeat the simulation (N^(RO))
+            num_agents: Number of agents
             test_function_dimension: The dimensionality of the region. (Dimensionality of the test function)
-            region_support: The bounds of the region within which the sampling is to be done.
-                                        Region Bounds is M x N x O where;
-                                            M = number of regions;
-                                            N = test_function_dimension (Dimensionality of the test function);
-                                            O = Lower and Upper bound. Should be of length 2;
 
-        Returns:
-            The new sample points by BO
-        """
+        Return:
+            F_nc: Average approximate Q-factor of the configuration
+    """
+    total_time = 0
+    roll = RolloutEI()
+    lvs = root.find_leaves()
+    
+    for l in lvs:
+        l.state = State.ACTUAL
+    root = saveRegionState(root)  # Save the original state of the tree
+    f_g = 0
 
-        tf_dim = region_support.shape[0]
-        lower_bound_theta = np.ndarray.flatten(region_support[:, 0])
-        upper_bound_theta = np.ndarray.flatten(region_support[:, 1])
+    for r in range(mc_iters):
+
+        # Rollout the current configuration
+        root, f_ro = roll.rollout(m, root, globalGP, horizon, num_agents, tf, tf_dim, behavior, rng)  # Execute the operation and build the tree
         
-        curr_best = np.min(y_train)
+        # Sum up the approximate Q-factor ecountered over N^(RO) times 
+        f_g += f_ro
 
-        
+        # Get actual leaves in order to restore the state
+        lvs = getActualState(root)
+        for sima in lvs:
+            # Accumulate the improvements across regions to make the actual jumps
+            accumulate_rewardDist(sima, num_agents)
+            sima.rewardDist = np.asarray(sima.rewardDist, dtype="object").reshape((1, num_agents))
+            sima.avgRewardDist = np.vstack((sima.avgRewardDist, sima.rewardDist))
+            sima.avgRewardDist = np.sum(sima.avgRewardDist, axis=0)
+            
 
-        fun = lambda x_: -1 * self._acquisition(y_train, x_, gpr_model)
-        
-        # for agent in range(num_agents):
-            # lower_bound_theta = np.ndarray.flatten(region_support[:, 0])
-            # upper_bound_theta = np.ndarray.flatten(region_support[:, 1])
-        random_samples = uniform_sampling(2000, region_support, tf_dim, rng)
-        # random_samples = np.vstack((random_samples,action[:agent]))
-        # 
-        min_bo_val = -1 * self._acquisition(
-            y_train, random_samples, gpr_model, "multiple"
-        )
-        # min_bo = np.array(random_samples[np.argmin(min_bo_val), :])
-        # print('min bo b4 BFGS :',min_bo, min_bo_val[-3],random_samples[-3])
-        # min_bo_val = np.min(min_bo_val)
-        print('before sorting : ',np.min(min_bo_val), np.array(random_samples[np.argmin(min_bo_val), :]))
+        for l in lvs:
+            # Restore region state except the reward distribution that facilitate jumps 
+            restoreRegionState(l, ['avgRewardDist','yOfsmpIndices'])
+            l.state = State.ACTUAL
+            saveRegionState(l)
 
-        min_bo_val, random_samples = zip(*sorted(zip(min_bo_val, random_samples), key=lambda x: x[0]))
-        
-        # print('after sorting :', np.asarray(random_samples[:5]), min_bo_val[:5])
-        min_bo = np.asarray(random_samples[:5])
+    # Compute the average expected improvements across regions over N^(RO) times 
+    for lf in lvs:
+            lf.avgRewardDist = lf.avgRewardDist / mc_iters
+            lf.rewardDist = lf.avgRewardDist
+    # Average the min predicted function value ecountered over N^(RO) times 
+    F_g = f_g/mc_iters
+    return root, F_g 
 
-
-        # min_bo = np.array(random_samples[np.argmin(min_bo_val), :])
-        # # print('min bo b4 BFGS :',min_bo, min_bo_val[-3],random_samples[-3])
-        # min_bo_val = np.min(min_bo_val)
-        # print('lower_bound_theta: ',list(zip(lower_bound_theta, upper_bound_theta)))
-        # for _ in range(9):
-        #     new_params = minimize(
-        #         fun,
-        #         bounds=list(zip(lower_bound_theta, upper_bound_theta)),
-        #         x0=min_bo,
-        #     )
-
-        #     if not new_params.success:
-        #         continue
-
-        #     if min_bo is None or fun(new_params.x) < min_bo_val:
-        #         min_bo = new_params.x
-        #         min_bo_val = fun(min_bo)
-        # new_params = minimize(
-        #     fun, bounds=list(zip(lower_bound_theta, upper_bound_theta)), x0=min_bo
-        # )
-        # min_bo = new_params.x
-       # get the num of agents in each subregion 
-        return min_bo#, min_bo_val[:5]

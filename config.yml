@@ -1,0 +1,13 @@
+sampling:
+  initBudget: 10
+  mc_iters: 2
+  num_inactive: 100
+log:
+  interval: 4
+testfunc: 'rastrigin'
+configs:
+  perm: 1
+  smp: 1
+parallel: True
+agents: 4
+horizon: 4

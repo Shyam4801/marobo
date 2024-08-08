@@ -4,7 +4,7 @@ import numpy as np
 from attr import frozen
 from typing import Callable, Any
 from numpy.typing import NDArray
-from .utils.logged import *
+from .utils.loggScript import *
 
 from .bayesianOptimization import BOSampling
 from .utils import Fn, compute_robustness
@@ -90,6 +90,7 @@ class PerformBO:
 
         if not falsified:
             print("No falsification in Initial Samples. Performing BO now")
-            falsified, rg, plot_res = bo_routine.sample(self.tf_wrapper, self.max_budget - self.init_budget, x_train, y_train, self.region_support, gpr_model, self.rng, self.num_agents)
+            falsified = bo_routine.sample(self.tf_wrapper, self.max_budget - self.init_budget, x_train, y_train, self.region_support, gpr_model, 
+                                                        self.rng, self.num_agents) 
 
-        return BOResult(self.tf_wrapper.point_history, self.tf_wrapper.agent_point_history,time.perf_counter()-start_time), rg, plot_res
+        return BOResult(self.tf_wrapper.point_history, self.tf_wrapper.agent_point_history,time.perf_counter()-start_time)

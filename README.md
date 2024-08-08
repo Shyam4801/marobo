@@ -1,5 +1,12 @@
-# Bayesian Optimization
+# Multi Agent Rollout for Bayesian Optimization 
+Solving black-box global optimization problems efficiently across domains remains challenging especially for large scale optimization problems. Bayesian optimization has obtained important success as a black box optimization technique based on surrogates, but it still suffers when applied to large scale heterogeneous landscapes. Recent approaches have proposed non-myopic approximations and partitioning of the input domain into subregions to prioritize regions that capture important areas of the solution space. A Multi Agent Rollout formulation of Bayesian optimization (MAroBO) that partitions the input domain among finite set of agents for distributed sampling is proposed. This is the official implementation of MAroBO.
 
+## Illustration of MAroBO with 4 Agents on Modified Branin and Himmelblau Function
+
+<p float="left">
+  <img src="resources/S2.gif" width="500" alt="MAroBO with 4 agents on Modified Branin function"/>
+  <img src="resources/SS.gif" width="500" alt="MAroBO with 4 agents on Himmelblau function"/>
+</p>
 
 ## Installation
 

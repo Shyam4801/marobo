@@ -55,9 +55,9 @@ class BOSampling:
             raise TypeError(f"x_train, y_train set mismatch. x_train has shape {x_train.shape} and y_train has shape {y_train.shape}")
 
         
-        falsified, rg, plot_res = self.bo_model.sample(
+        falsified = self.bo_model.sample(
             test_function, num_samples, x_train, y_train, region_support, gpr_model, rng, behavior
         )
 
 
-        return falsified, rg, plot_res
+        return falsified
